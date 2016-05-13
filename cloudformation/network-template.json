@@ -1,0 +1,1222 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Baseline Network Configuration",
+  "Metadata": {
+    "AWS::CloudFormation::Interface": {
+      "ParameterGroups": [
+        {
+          "Label": {
+            "default": "General Network Configuration"
+          },
+          "Parameters": [
+            "VPCInstanceTenancy",
+            "AvailabilityZone1",
+            "AvailabilityZone2",
+            "AvailabilityZone3"
+          ]
+        },
+        {
+          "Label": {
+            "default": "Application Network Configuration"
+          },
+          "Parameters": [
+            "ApplicationVPCName",
+            "ApplicationCIDR",
+            "PublicSubnetACIDR",
+            "PublicSubnetBCIDR",
+            "PublicSubnetCCIDR",
+            "AppPrivateSubnetACIDR",
+            "AppPrivateSubnetBCIDR",
+            "AppPrivateSubnetCCIDR",
+            "NatInstanceType",
+            "KeyName"
+          ]
+        },
+        {
+          "Label": {
+            "default": "Bastion Network Configuration"
+          },
+          "Parameters": [
+            "BastionVPCName",
+            "BastionCIDR",
+            "BastionSubnetACIDR",
+            "BastionSubnetBCIDR",
+            "BastionSubnetCCIDR",
+            "BastionOpsWorksInstanceType"
+          ]
+        },
+        {
+          "Label": {
+            "default": "Tags"
+          },
+          "Parameters": [
+            "Application",
+            "Environment"
+          ]
+        }
+      ]
+    }
+  },
+  "Parameters": {
+    "AvailabilityZone1": {
+      "Description": "Availability Zone 1 Name in Region",
+      "Type": "AWS::EC2::AvailabilityZone::Name"
+    },
+    "AvailabilityZone2": {
+      "Description": "Availability Zone 2 Name in Region",
+      "Type": "AWS::EC2::AvailabilityZone::Name"
+    },
+    "AvailabilityZone3": {
+      "Description": "Availability Zone 3 Name in Region",
+      "Type": "AWS::EC2::AvailabilityZone::Name"
+    },
+    "ApplicationVPCName": {
+      "Description": "App VPC Name",
+      "Type": "String",
+      "Default": ""
+    },
+    "ApplicationCIDR": {
+      "Description": "CIDR block for App VPC",
+      "Type": "String",
+      "Default": "10.0.0.0/16"
+    },
+    "BastionVPCName": {
+      "Description": "Bastion VPC Name",
+      "Type": "String",
+      "Default": ""
+    },
+    "BastionCIDR": {
+      "Default": "172.33.0.0/16",
+      "Description": "CIDR block for Bastion VPC",
+      "Type": "String"
+    },
+    "BastionSubnetACIDR": {
+      "Description": "CIDR block for Bastion Subnet A",
+      "Type": "String",
+      "Default": "172.33.0.0/24"
+    },
+    "BastionSubnetBCIDR": {
+      "Description": "CIDR block for Bastion Subnet B",
+      "Type": "String",
+      "Default": "172.33.1.0/24"
+    },
+    "BastionSubnetCCIDR": {
+      "Description": "CIDR block for Bastion Subnet C",
+      "Type": "String",
+      "Default": "172.33.2.0/24"
+    },
+    "PublicSubnetACIDR": {
+      "Description": "CIDR block for Public Subnet A",
+      "Type": "String",
+      "Default": "10.0.20.0/24"
+    },
+    "PublicSubnetBCIDR": {
+      "Description": "CIDR block for Public Subnet B",
+      "Type": "String",
+      "Default": "10.0.21.0/24"
+    },
+    "PublicSubnetCCIDR": {
+      "Description": "CIDR block for Public Subnet C",
+      "Type": "String",
+      "Default": "10.0.22.0/24"
+    },
+    "AppPrivateSubnetACIDR": {
+      "Description": "CIDR block for Private Subnet A",
+      "Type": "String",
+      "Default": "10.0.0.0/24"
+    },
+    "AppPrivateSubnetBCIDR": {
+      "Description": "CIDR block for Private Subnet B",
+      "Type": "String",
+      "Default": "10.0.1.0/24"
+    },
+    "AppPrivateSubnetCCIDR": {
+      "Description": "CIDR block for Private Subnet C",
+      "Type": "String",
+      "Default": "10.0.2.0/24"
+    },
+    "KeyName": {
+      "Description": "Key Name for Instance",
+      "Type": "AWS::EC2::KeyPair::KeyName",
+      "Default": ""
+    },
+    "NatInstanceType": {
+      "Description": "Nat EC2 instance type",
+      "Type": "String",
+      "Default": "t2.micro",
+      "AllowedValues": [
+        "t2.micro",
+        "m3.medium"
+      ]
+    },
+    "BastionOpsWorksInstanceType": {
+      "Default": "t2.micro",
+      "Description": "EC2 instance type used for each bastion box",
+      "Type": "String",
+      "AllowedValues": [
+        "t2.micro",
+        "m3.medium"
+      ]
+    },
+    "VPCInstanceTenancy": {
+      "Description": "The allowed tenancy of instances launched into the VPC (m3.medium is smallest for dedicated tenancy)",
+      "Default": "default",
+      "Type": "String",
+      "AllowedValues": [
+        "default",
+        "dedicated"
+      ]
+    },
+    "Application": {
+      "Description": "Lowercase application name.",
+      "Type": "String"
+    },
+    "Environment": {
+      "Description": "dev, tst, stg, prd, etc",
+      "Type": "String"
+    }
+  },
+  "Mappings": {
+    "AWSRegionArch2AMI": {
+      "us-east-1": {
+        "HVM64": "ami-08842d60"
+      },
+      "us-west-2": {
+        "HVM64": "ami-8786c6b7"
+      },
+      "us-west-1": {
+        "HVM64": "ami-cfa8a18a"
+      }
+    }
+  },
+  "Resources": {
+    "ApplicationVPC": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": {
+          "Ref": "ApplicationCIDR"
+        },
+        "InstanceTenancy": {
+          "Ref": "VPCInstanceTenancy"
+        },
+        "EnableDnsSupport": "true",
+        "EnableDnsHostnames": "true",
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {
+              "Ref": "ApplicationVPCName"
+            }
+          },
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "Application"
+            }
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          }
+        ]
+      }
+    },
+    "BastionVPC": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": {
+          "Ref": "BastionCIDR"
+        },
+        "InstanceTenancy": {
+          "Ref": "VPCInstanceTenancy"
+        },
+        "EnableDnsSupport": "true",
+        "EnableDnsHostnames": "true",
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {
+              "Ref": "BastionVPCName"
+            }
+          },
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "Application"
+            }
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          }
+        ]
+      }
+    },
+    "SecurityGroupNAT": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Allow Nat",
+        "VpcId": {
+          "Ref": "ApplicationVPC"
+        },
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "80",
+            "ToPort": "80",
+            "CidrIp": {
+              "Ref": "ApplicationCIDR"
+            }
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "443",
+            "ToPort": "443",
+            "CidrIp": {
+              "Ref": "ApplicationCIDR"
+            }
+          }
+        ]
+      }
+    },
+    "SecurityGroupSSH": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Enable SSH access via port 22",
+        "VpcId": {
+          "Ref": "ApplicationVPC"
+        },
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": "22",
+            "ToPort": "22",
+            "CidrIp": {
+              "Ref": "ApplicationCIDR"
+            }
+          }
+        ]
+      }
+    },
+    "PeeringConnBastion": {
+      "Type": "AWS::EC2::VPCPeeringConnection",
+      "DependsOn": [
+        "ApplicationVPC"
+      ],
+      "Properties": {
+        "VpcId": {
+          "Ref": "BastionVPC"
+        },
+        "PeerVpcId": {
+          "Ref": "ApplicationVPC"
+        }
+      }
+    },
+    "BastionSubnetA": {
+      "Type": "AWS::EC2::Subnet",
+      "DependsOn": "BastionIGWAttachment",
+      "Properties": {
+        "CidrBlock": {
+          "Ref": "BastionSubnetACIDR"
+        },
+        "AvailabilityZone": {
+          "Ref": "AvailabilityZone1"
+        },
+        "VpcId": {
+          "Ref": "BastionVPC"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Bastion Subnet A"
+          },
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "Application"
+            }
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          }
+        ]
+      }
+    },
+    "BastionSubnetB": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": {
+          "Ref": "BastionSubnetBCIDR"
+        },
+        "AvailabilityZone": {
+          "Ref": "AvailabilityZone2"
+        },
+        "VpcId": {
+          "Ref": "BastionVPC"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Bastion Subnet B"
+          },
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "Application"
+            }
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          }
+        ]
+      }
+    },
+    "BastionSubnetC": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": {
+          "Ref": "BastionSubnetCCIDR"
+        },
+        "AvailabilityZone": {
+          "Ref": "AvailabilityZone3"
+        },
+        "VpcId": {
+          "Ref": "BastionVPC"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Bastion Subnet C"
+          },
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "Application"
+            }
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          }
+        ]
+      }
+    },
+    "PublicSubnetA": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": {
+          "Ref": "PublicSubnetACIDR"
+        },
+        "AvailabilityZone": {
+          "Ref": "AvailabilityZone1"
+        },
+        "VpcId": {
+          "Ref": "ApplicationVPC"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Public Subnet A"
+          },
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "Application"
+            }
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          }
+        ]
+      }
+    },
+    "PublicSubnetB": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": {
+          "Ref": "PublicSubnetBCIDR"
+        },
+        "AvailabilityZone": {
+          "Ref": "AvailabilityZone2"
+        },
+        "VpcId": {
+          "Ref": "ApplicationVPC"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Public Subnet B"
+          },
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "Application"
+            }
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          }
+        ]
+      }
+    },
+    "PublicSubnetC": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": {
+          "Ref": "PublicSubnetCCIDR"
+        },
+        "AvailabilityZone": {
+          "Ref": "AvailabilityZone3"
+        },
+        "VpcId": {
+          "Ref": "ApplicationVPC"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Public Subnet C"
+          },
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "Application"
+            }
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          }
+        ]
+      }
+    },
+    "AppPrivateSubnetA": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": {
+          "Ref": "AppPrivateSubnetACIDR"
+        },
+        "AvailabilityZone": {
+          "Ref": "AvailabilityZone1"
+        },
+        "VpcId": {
+          "Ref": "ApplicationVPC"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "App Private Subnet A"
+          },
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "Application"
+            }
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          }
+        ]
+      }
+    },
+    "AppPrivateSubnetB": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": {
+          "Ref": "AppPrivateSubnetBCIDR"
+        },
+        "AvailabilityZone": {
+          "Ref": "AvailabilityZone2"
+        },
+        "VpcId": {
+          "Ref": "ApplicationVPC"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "App Private Subnet B"
+          },
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "Application"
+            }
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          }
+        ]
+      }
+    },
+    "AppPrivateSubnetC": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": {
+          "Ref": "AppPrivateSubnetCCIDR"
+        },
+        "AvailabilityZone": {
+          "Ref": "AvailabilityZone3"
+        },
+        "VpcId": {
+          "Ref": "ApplicationVPC"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "App Private Subnet C"
+          },
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "Application"
+            }
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          }
+        ]
+      }
+    },
+    "ApplicationIGW": {
+      "Type": "AWS::EC2::InternetGateway",
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Internet Gateway"
+          },
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "Application"
+            }
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          }
+        ]
+      }
+    },
+    "BastionIGW": {
+      "Type": "AWS::EC2::InternetGateway",
+      "DeletionPolicy": "Delete",
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Bastion Internet Gateway"
+          },
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "Application"
+            }
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          }
+        ]
+      }
+    },
+    "RouteTableMain": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "ApplicationVPC"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Route table for Public Subnets"
+          },
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "Application"
+            }
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          }
+        ]
+      }
+    },
+    "RouteTableBastion": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "BastionVPC"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Route table for Bastion VPC"
+          },
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "Application"
+            }
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          }
+        ]
+      }
+    },
+    "RouteBastionIGW": {
+      "Type": "AWS::EC2::Route",
+      "DependsOn": "BastionIGWAttachment",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "RouteTableBastion"
+        },
+        "GatewayId": {
+          "Ref": "BastionIGW"
+        },
+        "DestinationCidrBlock": "0.0.0.0/0"
+      }
+    },
+    "RouteBastionPeering": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "RouteTableBastion"
+        },
+        "VpcPeeringConnectionId": {
+          "Ref": "PeeringConnBastion"
+        },
+        "DestinationCidrBlock": {
+          "Ref": "ApplicationCIDR"
+        }
+      }
+    },
+    "RouteAssocBastionA": {
+      "DependsOn": "BastionIGWAttachment",
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "RouteTableBastion"
+        },
+        "SubnetId": {
+          "Ref": "BastionSubnetA"
+        }
+      }
+    },
+    "RouteAssocBastionB": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "RouteTableBastion"
+        },
+        "SubnetId": {
+          "Ref": "BastionSubnetB"
+        }
+      }
+    },
+    "RouteAssocBastionC": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "RouteTableBastion"
+        },
+        "SubnetId": {
+          "Ref": "BastionSubnetC"
+        }
+      }
+    },
+    "EIPNAT": {
+      "Type": "AWS::EC2::EIP",
+      "Properties": {
+        "Domain": "vpc"
+      }
+    },
+    "AssociateEIPNAT": {
+      "Type": "AWS::EC2::EIPAssociation",
+      "Properties": {
+        "AllocationId": {
+          "Fn::GetAtt": [
+            "EIPNAT",
+            "AllocationId"
+          ]
+        },
+        "NetworkInterfaceId": {
+          "Ref": "ENINAT"
+        }
+      }
+    },
+    "ENINAT": {
+      "Type": "AWS::EC2::NetworkInterface",
+      "Properties": {
+        "SubnetId": {
+          "Ref": "PublicSubnetA"
+        },
+        "GroupSet": [
+          {
+            "Ref": "SecurityGroupSSH"
+          },
+          {
+            "Ref": "SecurityGroupNAT"
+          }
+        ],
+        "Description": "Interface for Nat device",
+        "Tags": [
+          {
+            "Key": "Network",
+            "Value": "NAT Device"
+          },
+          {
+            "Key": "Name",
+            "Value": "NAT Device"
+          },
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "Application"
+            }
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          }
+        ]
+      }
+    },
+    "NATInstance": {
+      "Type": "AWS::EC2::Instance",
+      "Properties": {
+        "InstanceType": {
+          "Ref": "NatInstanceType"
+        },
+        "SourceDestCheck": false,
+        "KeyName": {
+          "Ref": "KeyName"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "NAT Instance"
+          },
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "Application"
+            }
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          }
+        ],
+        "UserData": {
+          "Fn::Base64": {
+            "Fn::Join": [
+              "",
+              [
+                "#!/bin/sh\n",
+                "echo 1 > /proc/sys/net/ipv4/ip_forward\n",
+                "echo 0 > /proc/sys/net/ipv4/conf/eth0/send_redirects\n",
+                "/sbin/iptables -t nat -A POSTROUTING -o eth0 -s 0.0.0.0/0 -j MASQUERADE\n",
+                "/sbin/iptables-save > /etc/sysconfig/iptables\n",
+                "mkdir -p /etc/sysctl.d/\n",
+                "cat <<EOF > /etc/sysctl.d/nat.conf\n",
+                "net.ipv4.ip_forward = 1 \n",
+                "net.ipv4.conf.eth0.send_redirects = 0\n",
+                "EOF\n"
+              ]
+            ]
+          }
+        },
+        "ImageId": {
+          "Fn::FindInMap": [
+            "AWSRegionArch2AMI",
+            {
+              "Ref": "AWS::Region"
+            },
+            "HVM64"
+          ]
+        },
+        "NetworkInterfaces": [
+          {
+            "NetworkInterfaceId": {
+              "Ref": "ENINAT"
+            },
+            "DeviceIndex": "0"
+          }
+        ]
+      }
+    },
+    "RouteIGW": {
+      "Type": "AWS::EC2::Route",
+      "DependsOn": "IGWAttachment",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "RouteTableMain"
+        },
+        "GatewayId": {
+          "Ref": "ApplicationIGW"
+        },
+        "DestinationCidrBlock": "0.0.0.0/0"
+      }
+    },
+    "RoutetoBastionPublic": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "RouteTableMain"
+        },
+        "VpcPeeringConnectionId": {
+          "Ref": "PeeringConnBastion"
+        },
+        "DestinationCidrBlock": {
+          "Ref": "BastionCIDR"
+        }
+      }
+    },
+    "RoutePrivateNAT": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "RouteTableId": {
+          "Ref": "RouteTablePrivate"
+        },
+        "InstanceId": {
+          "Ref": "NATInstance"
+        }
+      }
+    },
+    "RoutePrivateBastionPeering": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "DestinationCidrBlock": {
+          "Ref": "BastionCIDR"
+        },
+        "RouteTableId": {
+          "Ref": "RouteTablePrivate"
+        },
+        "VpcPeeringConnectionId": {
+          "Ref": "PeeringConnBastion"
+        }
+      }
+    },
+    "RouteAssocPublicA": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "RouteTableMain"
+        },
+        "SubnetId": {
+          "Ref": "PublicSubnetA"
+        }
+      }
+    },
+    "RouteAssocPublicB": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "RouteTableMain"
+        },
+        "SubnetId": {
+          "Ref": "PublicSubnetB"
+        }
+      }
+    },
+    "RouteAssocPublicC": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "RouteTableMain"
+        },
+        "SubnetId": {
+          "Ref": "PublicSubnetC"
+        }
+      }
+    },
+    "AppPrivateSubnetAssociationA": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "RouteTablePrivate"
+        },
+        "SubnetId": {
+          "Ref": "AppPrivateSubnetA"
+        }
+      }
+    },
+    "AppPrivateSubnetAssociationB": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "RouteTablePrivate"
+        },
+        "SubnetId": {
+          "Ref": "AppPrivateSubnetB"
+        }
+      }
+    },
+    "AppPrivateSubnetAssociationC": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "RouteTablePrivate"
+        },
+        "SubnetId": {
+          "Ref": "AppPrivateSubnetC"
+        }
+      }
+    },
+    "RouteTablePrivate": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "ApplicationVPC"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "Route Table for Private Networks"
+          },
+          {
+            "Key": "Application",
+            "Value": {
+              "Ref": "Application"
+            }
+          },
+          {
+            "Key": "Environment",
+            "Value": {
+              "Ref": "Environment"
+            }
+          }
+        ]
+      }
+    },
+    "IGWAttachment": {
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+      "DependsOn": "ApplicationIGW",
+      "Properties": {
+        "VpcId": {
+          "Ref": "ApplicationVPC"
+        },
+        "InternetGatewayId": {
+          "Ref": "ApplicationIGW"
+        }
+      }
+    },
+    "BastionIGWAttachment": {
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+      "DeletionPolicy": "Delete",
+      "DependsOn": "BastionIGW",
+      "Properties": {
+        "VpcId": {
+          "Ref": "BastionVPC"
+        },
+        "InternetGatewayId": {
+          "Ref": "BastionIGW"
+        }
+      }
+    },
+    "BastionInstanceA": {
+      "DependsOn": "BastionOpsApp",
+      "Type": "AWS::OpsWorks::Instance",
+      "Properties": {
+        "AmiId": {
+          "Fn::FindInMap": [
+            "AWSRegionArch2AMI",
+            {
+              "Ref": "AWS::Region"
+            },
+            "HVM64"
+          ]
+        },
+        "Os": "Custom",
+        "InstallUpdatesOnBoot": true,
+        "StackId": {
+          "Ref": "BastionOpsStack"
+        },
+        "LayerIds": [
+          {
+            "Ref": "BastionOpsLayer"
+          }
+        ],
+        "InstanceType": {
+          "Ref": "BastionOpsWorksInstanceType"
+        },
+        "RootDeviceType": "EBS backed",
+        "SubnetId": {
+          "Ref": "BastionSubnetA"
+        }
+      }
+    },
+    "BastionOpsLayer": {
+      "Type": "AWS::OpsWorks::Layer",
+      "DependsOn": "BastionOpsApp",
+      "Properties": {
+        "StackId": {
+          "Ref": "BastionOpsStack"
+        },
+        "Name": "bastion",
+        "Type": "custom",
+        "Shortname": "instance",
+        "EnableAutoHealing": "true",
+        "AutoAssignElasticIps": "false",
+        "AutoAssignPublicIps": "true"
+      }
+    },
+    "BastionOpsApp": {
+      "DependsOn": "BastionOpsStack",
+      "Type": "AWS::OpsWorks::App",
+      "Properties": {
+        "StackId": {
+          "Ref": "BastionOpsStack"
+        },
+        "Type": "other",
+        "Name": "bastion"
+      }
+    },
+    "BastionOpsStack": {
+      "Type": "AWS::OpsWorks::Stack",
+      "Properties": {
+        "ServiceRoleArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:aws:iam::",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":role/aws-opsworks-service-role"
+            ]
+          ]
+        },
+        "DefaultInstanceProfileArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:aws:iam::",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":instance-profile/aws-opsworks-ec2-role"
+            ]
+          ]
+        },
+        "Name": {
+          "Ref": "BastionVPCName"
+        },
+        "VpcId": {
+          "Ref": "BastionVPC"
+        },
+        "DefaultSubnetId": {
+          "Ref": "BastionSubnetA"
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "ApplicationVPC": {
+      "Value": {
+        "Ref": "ApplicationVPC"
+      }
+    },
+    "BastionVPC": {
+      "Value": {
+        "Ref": "BastionVPC"
+      }
+    },
+    "BastionSubnetA": {
+      "Value": {
+        "Ref": "BastionSubnetA"
+      }
+    },
+    "BastionSubnetB": {
+      "Value": {
+        "Ref": "BastionSubnetB"
+      }
+    },
+    "BastionSubnetC": {
+      "Value": {
+        "Ref": "BastionSubnetC"
+      }
+    },
+    "PublicSubnetA": {
+      "Value": {
+        "Ref": "PublicSubnetA"
+      }
+    },
+    "PublicSubnetB": {
+      "Value": {
+        "Ref": "PublicSubnetB"
+      }
+    },
+    "PublicSubnetC": {
+      "Value": {
+        "Ref": "PublicSubnetC"
+      }
+    },
+    "AppPrivateSubnetA": {
+      "Value": {
+        "Ref": "AppPrivateSubnetA"
+      }
+    },
+    "AppPrivateSubnetB": {
+      "Value": {
+        "Ref": "AppPrivateSubnetB"
+      }
+    },
+    "AppPrivateSubnetC": {
+      "Value": {
+        "Ref": "AppPrivateSubnetC"
+      }
+    },
+    "SecurityGroupSSH": {
+      "Value": {
+        "Ref": "SecurityGroupSSH"
+      }
+    }
+  }
+}
