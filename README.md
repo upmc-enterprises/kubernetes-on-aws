@@ -55,7 +55,7 @@ $ kubectl config use-context aws-admin
 
 _NOTE: Since access to the k8s api will be via the bastion box, can setup a hosts entry in your system hosts file (e.g. /etc/hosts) which points to localhost but matches a SAN created above. This is also why port 9443 is used._
 
-Example hosts file:
+##### Example hosts file:
 
 Here I added `127.0.0.1 kubernetes` to my local hosts file.
 
@@ -78,3 +78,14 @@ To access the k8s api via `kubectl` use the following command to create a persis
 ```
 ssh -L 9443:10.0.70.50:443 ec2-user@[BastionIPAddress] -N
 ```
+
+### Setup access to bastion via OpsWorks
+
+1. Login to AWS console and choose OpsWorks
+2. Select Stack
+3. On left menu choose `Permissions`
+4. Top right button choose `Edit`
+5. Select IAM users who need access and choose `Save`
+6. Verify status by refreshing `Deployments`
+
+_NOTE: Users must have uploaded keys to their profile via OpsWorks. The nice part is no shared keys and access can be controlled centrally._
