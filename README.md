@@ -14,6 +14,8 @@ There are two different CloudFormation templates, [network-template](cloudformat
 
 The network template is designed to provide a set of VPC's, subnets, and internet gateways to provide a basic "shell" to deploy AWS infrastructure into. This base architecture is modeled after the [NIST Template](https://aws.amazon.com/about-aws/whats-new/2016/01/nist-800-53-standardized-architecture-on-the-aws-cloud-quick-start-reference-deployment/) by only allowing access via a bastion instance. Access to the bastion instance is provided via OpsWorks to manage individual user keys on the box.
 
+![base-network](images/network.png)
+
 ### cloudformation/k8s-template.json
 
 The k8s template is used to deploy a kubernetes cluster into the network-template or your own existing infrastructure. This is important as the k8s template was designed to not force users into any base infrastructure. All that is required to deploy the k8s template is a VPC, and a route table. The template creates it's own subnets and permissions, but everything else is left up to the user.
