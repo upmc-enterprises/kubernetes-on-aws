@@ -5,7 +5,7 @@ set -e
 export ETCD_ENDPOINTS=
 
 # Specify the version (vX.Y.Z) of Kubernetes assets to deploy
-export K8S_VER=v1.2.4
+export K8S_VER=v1.3.4
 
 # The CIDR network to use for pod IPs.
 # Each pod launched in the cluster will be assigned an IP out of this range.
@@ -96,7 +96,7 @@ function init_templates {
 [Service]
 ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests
 ExecStartPre=/usr/bin/mkdir -p /var/lib/k8s
-ExecStartPre=/usr/bin/wget -O /var/lib/k8s/kubelet https://storage.googleapis.com/kubernetes-release/release/v1.2.4/bin/linux/amd64/kubelet
+ExecStartPre=/usr/bin/wget -O /var/lib/k8s/kubelet https://storage.googleapis.com/kubernetes-release/release/v1.3.4/bin/linux/amd64/kubelet
 ExecStartPre=/usr/bin/chmod +x /var/lib/k8s/kubelet
 ExecStart=/var/lib/k8s/kubelet \
   --api_servers=http://127.0.0.1:8080 \
