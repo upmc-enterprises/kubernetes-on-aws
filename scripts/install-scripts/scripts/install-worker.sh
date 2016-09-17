@@ -10,7 +10,7 @@ export ETCD_ENDPOINTS=
 export CONTROLLER_ENDPOINT=
 
 # Specify the version (vX.Y.Z) of Kubernetes assets to deploy
-export K8S_VER=v1.3.4
+export K8S_VER=v1.3.7
 
 # The IP address of the cluster DNS service.
 # This must be the same DNS_SERVICE_IP used when configuring the controller nodes.
@@ -79,7 +79,7 @@ function init_templates {
 [Service]
 ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests
 ExecStartPre=/usr/bin/mkdir -p /var/lib/k8s
-ExecStartPre=/usr/bin/wget -O /var/lib/k8s/kubelet https://storage.googleapis.com/kubernetes-release/release/v1.3.4/bin/linux/amd64/kubelet
+ExecStartPre=/usr/bin/wget -O /var/lib/k8s/kubelet https://storage.googleapis.com/kubernetes-release/release/v1.3.7/bin/linux/amd64/kubelet
 ExecStartPre=/usr/bin/chmod +x /var/lib/k8s/kubelet
 ExecStart=/var/lib/k8s/kubelet \
   --api_servers=${CONTROLLER_ENDPOINT} \
