@@ -168,8 +168,8 @@ function start_addons {
 	echo "K8S: kube-system namespace"
 	curl --silent -XPOST -H "Content-Type: application/json" -d"$(cat /srv/kubernetes/manifests/kube-system.json)" "http://127.0.0.1:8080/api/v1/namespaces" > /dev/null
 	echo "K8S: DNS addon"
-	curl --silent -XPOST -H "Content-Type: application/json" -d"$(cat /srv/kubernetes/manifests/kube-dns-rc.yml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/replicationcontrollers" > /dev/null
-	curl --silent -XPOST -H "Content-Type: application/json" -d"$(cat /srv/kubernetes/manifests/kube-dns-svc.yml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
+	curl --silent -XPOST -H "Content-Type: application/x-yaml" -d"$(cat /srv/kubernetes/manifests/kube-dns-rc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/replicationcontrollers" > /dev/null
+	curl --silent -XPOST -H "Content-Type: application/x-yaml" -d"$(cat /srv/kubernetes/manifests/kube-dns-svc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
 }
 
 init_config
