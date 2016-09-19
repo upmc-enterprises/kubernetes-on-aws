@@ -123,8 +123,8 @@ EOF
 	template manifests/controller/kube-scheduler.yaml /srv/kubernetes/manifests/kube-scheduler.yaml
 
 	template manifests/cluster/kube-system.json /srv/kubernetes/manifests/kube-system.json
-	template manifests/cluster/kube-dns-rc.yml /srv/kubernetes/manifests/kube-dns-rc.yml
-	template manifests/cluster/kube-dns-svc.yml /srv/kubernetes/manifests/kube-dns-svc.yml
+	template manifests/cluster/kube-dns-rc.yaml /srv/kubernetes/manifests/kube-dns-rc.yaml
+	template manifests/cluster/kube-dns-svc.yaml /srv/kubernetes/manifests/kube-dns-svc.yaml
 
 	local TEMPLATE=/etc/flannel/options.env
 	[ -f $TEMPLATE ] || {
