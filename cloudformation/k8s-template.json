@@ -4,19 +4,19 @@
   "Mappings": {
     "RegionMap": {
       "eu-central-1": {
-        "stable": "ami-e13fde8e"
+        "stable": "ami-c90bf8a6"
       },
       "eu-west-1": {
-        "stable": "ami-3b941448"
+        "stable": "ami-e3d6ab90"
       },
       "us-east-1": {
-        "stable": "ami-7a627510"
+        "stable": "ami-1c94e10b"
       },
       "us-west-1": {
-        "stable": "ami-d8770bb8"
+        "stable": "ami-43561a23"
       },
       "us-west-2": {
-        "stable": "ami-4f7f8a2f"
+        "stable": "ami-06af7f66"
       }
     }
   },
@@ -30,7 +30,7 @@
       "Type": "String"
     },
     "ArtifactURL": {
-      "Default": "https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/scripts/install-scripts",
+      "Default": "https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/upgrade/scripts/install-scripts",
       "Description": "Public location of kubernetes deployment artifacts",
       "Type": "String"
     },
@@ -94,6 +94,7 @@
       "Type": "String",
       "AllowedValues": [
         "t2.micro",
+        "t2.large",
         "m3.medium",
         "m3.large",
         "m3.xlarge",
@@ -144,6 +145,7 @@
       "Type": "String",
       "AllowedValues": [
         "t2.micro",
+        "t2.large",
         "m3.medium",
         "m3.large",
         "m3.xlarge",

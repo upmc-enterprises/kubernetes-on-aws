@@ -5,7 +5,11 @@ set -e
 export ETCD_ENDPOINTS=
 
 # Specify the version (vX.Y.Z) of Kubernetes assets to deploy
+export K8S_RKT_VER=v1.3.7_coreos.0
 export K8S_VER=v1.3.7
+
+# Hyperkube image repository to use.
+export HYPERKUBE_IMAGE_REPO=quay.io/coreos/hyperkube
 
 # The CIDR network to use for pod IPs.
 # Each pod launched in the cluster will be assigned an IP out of this range.
@@ -94,14 +98,27 @@ function init_templates {
 		mkdir -p $(dirname $TEMPLATE)
 		cat << EOF > $TEMPLATE
 [Service]
+Environment=KUBELET_VERSION=${K8S_RKT_VER}
+Environment=KUBELET_ACI=${HYPERKUBE_IMAGE_REPO}
+Environment="RKT_OPTS=--volume dns,kind=host,source=/etc/resolv.conf \
+  --mount volume=dns,target=/etc/resolv.conf \
+  --volume rkt,kind=host,source=/opt/bin/host-rkt \
+  --mount volume=rkt,target=/usr/bin/rkt \
+  --volume var-lib-rkt,kind=host,source=/var/lib/rkt \
+  --mount volume=var-lib-rkt,target=/var/lib/rkt \
+  --volume stage,kind=host,source=/tmp \
+  --mount volume=stage,target=/tmp \
+  --volume var-log,kind=host,source=/var/log \
+  --mount volume=var-log,target=/var/log"
 ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests
-ExecStartPre=/usr/bin/mkdir -p /var/lib/k8s
-ExecStartPre=/usr/bin/wget -O /var/lib/k8s/kubelet https://storage.googleapis.com/kubernetes-release/release/v1.3.7/bin/linux/amd64/kubelet
-ExecStartPre=/usr/bin/chmod +x /var/lib/k8s/kubelet
-ExecStart=/var/lib/k8s/kubelet \
+ExecStartPre=/usr/bin/mkdir -p /var/log/containers
+ExecStartPre=/usr/bin/mkdir -p /opt/bin/host-rkt
+ExecStart=/usr/lib/coreos/kubelet-wrapper \
   --api_servers=http://127.0.0.1:8080 \
   --register-node=false \
   --allow-privileged=true \
+	--rkt-path=/usr/bin/rkt \
+  --rkt-stage1-image=coreos.com/rkt/stage1-coreos \
   --config=/etc/kubernetes/manifests \
   --cluster_dns=${DNS_SERVICE_IP} \
   --cluster_domain=cluster.local
@@ -125,8 +142,15 @@ EOF
 	template manifests/cluster/kube-system.json /srv/kubernetes/manifests/kube-system.json
 	template manifests/cluster/kube-dns-rc.yaml /srv/kubernetes/manifests/kube-dns-rc.yaml
 	template manifests/cluster/kube-dns-svc.yaml /srv/kubernetes/manifests/kube-dns-svc.yaml
-	template manifests/cluster/kube-dashboard-deploy.yaml /srv/kubernetes/manifests/kube-dashboard-deploy.yaml
-	template manifests/cluster/kube-dashboard-svc.yaml /srv/kubernetes/manifests/kube-dashboard-svc.yaml
+
+	template manifests/controller/kube-dashboard-deploy.yaml /srv/kubernetes/manifests/kube-dashboard-deploy.yaml
+	template manifests/controller/kube-dashboard-svc.yaml /srv/kubernetes/manifests/kube-dashboard-svc.yaml
+
+	template manifests/controller/heapster-controller.yaml /srv/kubernetes/manifests/heapster-controller.yaml
+	template manifests/controller/grafana-service.yaml /srv/kubernetes/manifests/grafana-service.yaml
+	template manifests/controller/heapster-service.yaml /srv/kubernetes/manifests/heapster-service.yaml
+	template manifests/controller/influxdb-grafana-controller.yaml /srv/kubernetes/manifests/influxdb-grafana-controller.yaml
+	template manifests/controller/influxdb-service.yaml /srv/kubernetes/manifests/influxdb-service.yaml
 
 	local TEMPLATE=/etc/flannel/options.env
 	[ -f $TEMPLATE ] || {
@@ -172,8 +196,19 @@ function start_addons {
 	echo "K8S: DNS addon"
 	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/kube-dns-rc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/replicationcontrollers" > /dev/null
 	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/kube-dns-svc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
+
+  echo "K8S: Dashboard"
 	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/kube-dashboard-deploy.yaml)" "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/kube-system/deployments" > /dev/null
 	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/kube-dashboard-svc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
+
+	echo "K8S: Heapster"
+  curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/grafana-service.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
+  curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/heapster-service.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
+  curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/influxdb-service.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
+
+	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/heapster-controller.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/replicationcontrollers" > /dev/null
+	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/influxdb-grafana-controller.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/replicationcontrollers" > /dev/null
+
 }
 
 init_config
@@ -186,5 +221,6 @@ systemctl stop update-engine; systemctl mask update-engine
 echo "REBOOT_STRATEGY=off" >> /etc/coreos/update.conf
 
 systemctl enable kubelet; systemctl start kubelet
+systemctl start rpc-statd
 start_addons
 echo "DONE"

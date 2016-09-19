@@ -10,7 +10,11 @@ export ETCD_ENDPOINTS=
 export CONTROLLER_ENDPOINT=
 
 # Specify the version (vX.Y.Z) of Kubernetes assets to deploy
+export K8S_RKT_VER=v1.3.7_coreos.0
 export K8S_VER=v1.3.7
+
+# Hyperkube image repository to use.
+export HYPERKUBE_IMAGE_REPO=quay.io/coreos/hyperkube
 
 # The IP address of the cluster DNS service.
 # This must be the same DNS_SERVICE_IP used when configuring the controller nodes.
@@ -77,14 +81,27 @@ function init_templates {
 		mkdir -p $(dirname $TEMPLATE)
 		cat << EOF > $TEMPLATE
 [Service]
+Environment=KUBELET_VERSION=${K8S_RKT_VER}
+Environment=KUBELET_ACI=${HYPERKUBE_IMAGE_REPO}
+Environment="RKT_OPTS=--volume dns,kind=host,source=/etc/resolv.conf \
+  --mount volume=dns,target=/etc/resolv.conf \
+  --volume rkt,kind=host,source=/opt/bin/host-rkt \
+  --mount volume=rkt,target=/usr/bin/rkt \
+  --volume var-lib-rkt,kind=host,source=/var/lib/rkt \
+  --mount volume=var-lib-rkt,target=/var/lib/rkt \
+  --volume stage,kind=host,source=/tmp \
+  --mount volume=stage,target=/tmp \
+  --volume var-log,kind=host,source=/var/log \
+  --mount volume=var-log,target=/var/log"
 ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests
-ExecStartPre=/usr/bin/mkdir -p /var/lib/k8s
-ExecStartPre=/usr/bin/wget -O /var/lib/k8s/kubelet https://storage.googleapis.com/kubernetes-release/release/v1.3.7/bin/linux/amd64/kubelet
-ExecStartPre=/usr/bin/chmod +x /var/lib/k8s/kubelet
-ExecStart=/var/lib/k8s/kubelet \
+ExecStartPre=/usr/bin/mkdir -p /var/log/containers
+ExecStartPre=/usr/bin/mkdir -p /opt/bin/host-rkt
+ExecStart=/usr/lib/coreos/kubelet-wrapper \
   --api_servers=${CONTROLLER_ENDPOINT} \
   --register-node=true \
   --allow-privileged=true \
+	--rkt-path=/usr/bin/rkt \
+  --rkt-stage1-image=coreos.com/rkt/stage1-coreos \
   --config=/etc/kubernetes/manifests \
   --cluster_dns=${DNS_SERVICE_IP} \
   --cluster_domain=cluster.local \
@@ -124,3 +141,4 @@ systemctl stop update-engine; systemctl mask update-engine
 echo "REBOOT_STRATEGY=off" >> /etc/coreos/update.conf
 
 systemctl enable kubelet; systemctl start kubelet
+systemctl start rpc-statd
