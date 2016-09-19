@@ -125,6 +125,7 @@ EOF
 	template manifests/cluster/kube-system.json /srv/kubernetes/manifests/kube-system.json
 	template manifests/cluster/kube-dns-rc.yaml /srv/kubernetes/manifests/kube-dns-rc.yaml
 	template manifests/cluster/kube-dns-svc.yaml /srv/kubernetes/manifests/kube-dns-svc.yaml
+	template https://rawgit.com/kubernetes/dashboard/master/src/deploy/kubernetes-dashboard.yaml /srv/kubernetes/manifests/kubernetes-dashboard.yaml
 
 	local TEMPLATE=/etc/flannel/options.env
 	[ -f $TEMPLATE ] || {
@@ -170,6 +171,8 @@ function start_addons {
 	echo "K8S: DNS addon"
 	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/kube-dns-rc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/replicationcontrollers" > /dev/null
 	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/kube-dns-svc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
+	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/kube-dashboard-deploy.yaml)" "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/kube-system/deployments" > /dev/null
+	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/kube-dashboard-svc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
 }
 
 init_config
