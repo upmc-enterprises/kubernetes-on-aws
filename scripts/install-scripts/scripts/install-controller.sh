@@ -125,7 +125,8 @@ EOF
 	template manifests/cluster/kube-system.json /srv/kubernetes/manifests/kube-system.json
 	template manifests/cluster/kube-dns-rc.yaml /srv/kubernetes/manifests/kube-dns-rc.yaml
 	template manifests/cluster/kube-dns-svc.yaml /srv/kubernetes/manifests/kube-dns-svc.yaml
-	template https://rawgit.com/kubernetes/dashboard/master/src/deploy/kubernetes-dashboard.yaml /srv/kubernetes/manifests/kubernetes-dashboard.yaml
+	template manifests/cluster/kube-dashboard-deploy.yaml /srv/kubernetes/manifests/kube-dashboard-deploy.yaml
+	template manifests/cluster/kube-dashboard-svc.yaml /srv/kubernetes/manifests/kube-dashboard-svc.yaml
 
 	local TEMPLATE=/etc/flannel/options.env
 	[ -f $TEMPLATE ] || {
