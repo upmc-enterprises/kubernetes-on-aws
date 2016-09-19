@@ -123,8 +123,8 @@ EOF
 	template manifests/controller/kube-scheduler.yaml /srv/kubernetes/manifests/kube-scheduler.yaml
 
 	template manifests/cluster/kube-system.json /srv/kubernetes/manifests/kube-system.json
-	template manifests/cluster/kube-dns-rc.json /srv/kubernetes/manifests/kube-dns-rc.json
-	template manifests/cluster/kube-dns-svc.json /srv/kubernetes/manifests/kube-dns-svc.json
+	template manifests/cluster/kube-dns-rc.yml /srv/kubernetes/manifests/kube-dns-rc.yml
+	template manifests/cluster/kube-dns-svc.yml /srv/kubernetes/manifests/kube-dns-svc.yml
 
 	local TEMPLATE=/etc/flannel/options.env
 	[ -f $TEMPLATE ] || {
@@ -168,8 +168,8 @@ function start_addons {
 	echo "K8S: kube-system namespace"
 	curl --silent -XPOST -H "Content-Type: application/json" -d"$(cat /srv/kubernetes/manifests/kube-system.json)" "http://127.0.0.1:8080/api/v1/namespaces" > /dev/null
 	echo "K8S: DNS addon"
-	curl --silent -XPOST -H "Content-Type: application/json" -d"$(cat /srv/kubernetes/manifests/kube-dns-rc.json)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/replicationcontrollers" > /dev/null
-	curl --silent -XPOST -H "Content-Type: application/json" -d"$(cat /srv/kubernetes/manifests/kube-dns-svc.json)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
+	curl --silent -XPOST -H "Content-Type: application/json" -d"$(cat /srv/kubernetes/manifests/kube-dns-rc.yml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/replicationcontrollers" > /dev/null
+	curl --silent -XPOST -H "Content-Type: application/json" -d"$(cat /srv/kubernetes/manifests/kube-dns-svc.yml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
 }
 
 init_config
