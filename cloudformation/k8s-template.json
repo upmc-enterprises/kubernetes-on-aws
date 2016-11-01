@@ -30,7 +30,7 @@
       "Type": "String"
     },
     "ArtifactURL": {
-      "Default": "https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/upgrade/scripts/install-scripts",
+      "Default": "https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/scripts/install-scripts",
       "Description": "Public location of kubernetes deployment artifacts",
       "Type": "String"
     },
