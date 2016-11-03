@@ -4,19 +4,22 @@
   "Mappings": {
     "RegionMap": {
       "eu-central-1": {
-        "stable": "ami-c90bf8a6"
+        "stable": "ami-eb3b6198"
       },
       "eu-west-1": {
         "stable": "ami-e3d6ab90"
       },
       "us-east-1": {
-        "stable": "ami-1c94e10b"
+        "stable": "ami-7ee7e169"
+      },
+      "us-east-2": {
+        "stable": "ami-f8aaf09d"
       },
       "us-west-1": {
-        "stable": "ami-43561a23"
+        "stable": "ami-f7df8897"
       },
       "us-west-2": {
-        "stable": "ami-06af7f66"
+        "stable": "ami-d0e54eb0"
       }
     }
   },

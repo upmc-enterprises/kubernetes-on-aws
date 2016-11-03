@@ -181,6 +181,9 @@
       "us-east-1": {
         "HVM64": "ami-08842d60"
       },
+      "us-east-2": {
+        "HVM64": "ami-58277d3d"
+      },
       "us-west-2": {
         "HVM64": "ami-8786c6b7"
       },
