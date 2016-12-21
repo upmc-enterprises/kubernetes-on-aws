@@ -10,8 +10,8 @@ export ETCD_ENDPOINTS=
 export CONTROLLER_ENDPOINT=
 
 # Specify the version (vX.Y.Z) of Kubernetes assets to deploy
-export K8S_RKT_VER=v1.4.5_coreos.0
-export K8S_VER=v1.4.5
+export K8S_RKT_VER=v1.5.1_coreos.0
+export K8S_VER=v1.5.1
 
 # Hyperkube image repository to use.
 export HYPERKUBE_IMAGE_REPO=quay.io/coreos/hyperkube
@@ -98,19 +98,16 @@ ExecStartPre=/usr/bin/mkdir -p /var/log/containers
 ExecStartPre=/usr/bin/mkdir -p /opt/bin/host-rkt
 ExecStart=/usr/lib/coreos/kubelet-wrapper \
   --api_servers=${CONTROLLER_ENDPOINT} \
-  --register-node=true \
+  --register-node=false \
   --allow-privileged=true \
 	--rkt-path=/usr/bin/rkt \
   --rkt-stage1-image=coreos.com/rkt/stage1-coreos \
   --config=/etc/kubernetes/manifests \
   --cluster_dns=${DNS_SERVICE_IP} \
-  --cluster_domain=cluster.local \
-  --cloud-provider=aws \
-  --kubeconfig=/etc/kubernetes/worker-kubeconfig.yaml \
-  --tls-cert-file=/etc/kubernetes/ssl/worker.pem \
-  --tls-private-key-file=/etc/kubernetes/ssl/worker-key.pem
+  --cluster_domain=cluster.local
 Restart=always
 RestartSec=10
+
 [Install]
 WantedBy=multi-user.target
 EOF
