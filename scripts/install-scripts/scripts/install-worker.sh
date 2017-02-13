@@ -10,8 +10,8 @@ export ETCD_ENDPOINTS=
 export CONTROLLER_ENDPOINT=
 
 # Specify the version (vX.Y.Z) of Kubernetes assets to deploy
-export K8S_RKT_VER=v1.5.2_coreos.0
-export K8S_VER=v1.5.2
+export K8S_RKT_VER=v1.4.8_coreos.0
+export K8S_VER=v1.4.8
 
 # Hyperkube image repository to use.
 export HYPERKUBE_IMAGE_REPO=quay.io/coreos/hyperkube
