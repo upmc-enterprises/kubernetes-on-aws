@@ -5,8 +5,8 @@ set -e
 export ETCD_ENDPOINTS=
 
 # Specify the version (vX.Y.Z) of Kubernetes assets to deploy
-export K8S_RKT_VER=v1.5.6_coreos.0
-export K8S_VER=v1.5.6
+export K8S_RKT_VER=v1.6.7_coreos.0
+export K8S_VER=v1.6.7
 
 # Hyperkube image repository to use.
 export HYPERKUBE_IMAGE_REPO=quay.io/coreos/hyperkube
@@ -98,9 +98,9 @@ function init_templates {
 		mkdir -p $(dirname $TEMPLATE)
 		cat << EOF > $TEMPLATE
 [Service]
-Environment=KUBELET_VERSION=${K8S_RKT_VER}
-Environment=KUBELET_ACI=${HYPERKUBE_IMAGE_REPO}
-Environment="RKT_OPTS=--volume dns,kind=host,source=/etc/resolv.conf \
+Environment=KUBELET_IMAGE_TAG=${K8S_RKT_VER}
+Environment=KUBELET_IMAGE_URL=${HYPERKUBE_IMAGE_REPO}
+Environment="RKT_RUN_ARGS=--volume dns,kind=host,source=/etc/resolv.conf \
   --mount volume=dns,target=/etc/resolv.conf \
   --volume rkt,kind=host,source=/opt/bin/host-rkt \
   --mount volume=rkt,target=/usr/bin/rkt \
@@ -117,13 +117,53 @@ ExecStart=/usr/lib/coreos/kubelet-wrapper \
   --api_servers=http://127.0.0.1:8080 \
   --register-node=false \
   --allow-privileged=true \
-	--rkt-path=/usr/bin/rkt \
+  --rkt-path=/usr/bin/rkt \
   --rkt-stage1-image=coreos.com/rkt/stage1-coreos \
-  --config=/etc/kubernetes/manifests \
+  --pod-manifest-path=/etc/kubernetes/manifests \
   --cluster_dns=${DNS_SERVICE_IP} \
   --cluster_domain=cluster.local
 Restart=always
 RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+	}
+
+	local ETCD_TEMPLATE=/etc/systemd/system/etcd-member.service
+	[ -f $ETCD_TEMPLATE ] || {
+		echo "ETCD_TEMPLATE: $ETCD_TEMPLATE"
+		mkdir -p $(dirname $ETCD_TEMPLATE)
+		cat << EOF > $ETCD_TEMPLATE
+[Unit]
+Description=etcd (System Application Container)
+Documentation=https://github.com/coreos/etcd
+Wants=network.target
+Conflicts=etcd.service
+Conflicts=etcd2.service
+
+[Service]
+Type=notify
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=0
+LimitNOFILE=40000
+
+Environment="ETCD_IMAGE_TAG=v2.3.8"
+Environment="ETCD_NAME=%m"
+Environment="ETCD_USER=etcd"
+Environment="ETCD_DATA_DIR=/var/lib/etcd"
+Environment="RKT_RUN_ARGS=--uuid-file-save=/var/lib/coreos/etcd-member-wrapper.uuid"
+Environment="ETCD_OPTS=--advertise-client-urls: http://10.0.70.50:2379 \
+    --initial-advertise-peer-urls: http://10.0.70.50:2380 \
+	--listen-client-urls: http://0.0.0.0:2379 \
+	--listen-peer-urls: http://0.0.0.0:2380 \
+	--initial-cluster: controller=http://10.0.70.50:2380"
+
+ExecStartPre=/usr/bin/mkdir --parents /var/lib/coreos
+ExecStartPre=-/usr/bin/rkt rm --uuid-file=/var/lib/coreos/etcd-member-wrapper.uuid
+ExecStart=/usr/lib/coreos/etcd-wrapper $ETCD_OPTS
+ExecStop=-/usr/bin/rkt stop --uuid-file=/var/lib/coreos/etcd-member-wrapper.uuid
 
 [Install]
 WantedBy=multi-user.target
@@ -213,7 +253,7 @@ function start_addons {
 
 init_config
 init_templates
-
+systemctl enable etcd-member; systemctl start etcd-member
 init_flannel
 
 systemctl daemon-reload
