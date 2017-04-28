@@ -6,7 +6,7 @@ metadata:
   namespace: kube-system
 data:
   # Configure this with the location of your etcd cluster.
-  etcd_endpoints: "${ETCD_ENDPOINTS}"
+  etcd_endpoints: "http://10.0.70.50:2379"
 
   # The CNI network configuration to install on each node.  The special
   # values in this config will be automatically populated.

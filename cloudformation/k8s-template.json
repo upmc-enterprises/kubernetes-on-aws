@@ -269,48 +269,6 @@
       },
       "Type": "AWS::AutoScaling::AutoScalingGroup"
     },
-    "MasterELB": {
-      "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
-      "Properties": {
-        "Instances": [
-          {
-            "Ref": "InstanceController"
-          }
-        ],
-        "SecurityGroups": [
-          {
-            "Ref": "SecurityGroupELB"
-          }
-        ],
-        "HealthCheck": {
-          "HealthyThreshold": "2",
-          "Interval": "30",
-          "Target": "HTTP:8080/healthz",
-          "Timeout": "5",
-          "UnhealthyThreshold": "2"
-        },
-        "Scheme": "internal",
-        "Subnets": [
-          {
-            "Ref": "k8sSubnetA"
-          },
-          {
-            "Ref": "k8sSubnetA"
-          },
-          {
-            "Ref": "k8sSubnetA"
-          }
-        ],
-        "Listeners": [
-          {
-            "InstancePort": "443",
-            "InstanceProtocol": "TCP",
-            "LoadBalancerPort": "443",
-            "Protocol": "TCP"
-          }
-        ]
-      }
-    },
     "IAMInstanceProfileController": {
       "Properties": {
         "Path": "/",

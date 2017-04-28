@@ -231,8 +231,8 @@ function start_addons {
 	curl --silent -XPOST -H "Content-Type: application/json" -d"$(cat /srv/kubernetes/manifests/kube-system.json)" "http://127.0.0.1:8080/api/v1/namespaces" > /dev/null
 	echo "K8S: Calico"
 	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/calico-configmap.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/configmaps" > /dev/null
-	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/calico-daemonset.yaml)" "http://127.0.0.1:8080/apis/extension/v1beta1/namespaces/kube-system/daemonsets" > /dev/null
-	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/calico-replicaset.yaml)" "http://127.0.0.1:8080/apis/extension/v1beta1/namespaces/kube-system/replicaset" > /dev/null
+	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/calico-daemonset.yaml)" "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/kube-system/daemonsets" > /dev/null
+	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/calico-replicaset.yaml)" "http://127.0.0.1:8080/apis/extensions/v1beta1/namespaces/kube-system/replicaset" > /dev/null
 	echo "K8S: DNS addon"
 	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/kube-dns-rc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/replicationcontrollers" > /dev/null
 	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/kube-dns-svc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
