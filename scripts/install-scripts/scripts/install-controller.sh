@@ -5,8 +5,8 @@ set -e
 export ETCD_ENDPOINTS=
 
 # Specify the version (vX.Y.Z) of Kubernetes assets to deploy
-export K8S_RKT_VER=v1.5.1_coreos.0
-export K8S_VER=v1.5.1
+export K8S_RKT_VER=v1.5.7_coreos.0
+export K8S_VER=v1.5.7
 
 # Hyperkube image repository to use.
 export HYPERKUBE_IMAGE_REPO=quay.io/coreos/hyperkube
@@ -109,10 +109,13 @@ Environment="RKT_OPTS=--volume dns,kind=host,source=/etc/resolv.conf \
   --volume stage,kind=host,source=/tmp \
   --mount volume=stage,target=/tmp \
   --volume var-log,kind=host,source=/var/log \
-  --mount volume=var-log,target=/var/log"
+  --mount volume=var-log,target=/var/log \
+  --volume cni-bin,kind=host,source=/opt/cni/bin \
+  --mount volume=cni-bin,target=/opt/cni/bin"
 ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests
 ExecStartPre=/usr/bin/mkdir -p /var/log/containers
 ExecStartPre=/usr/bin/mkdir -p /opt/bin/host-rkt
+ExecStartPre=/usr/bin/mkdir -p /opt/cni/bin
 ExecStart=/usr/lib/coreos/kubelet-wrapper \
   --api_servers=http://127.0.0.1:8080 \
   --register-node=false \
@@ -121,7 +124,9 @@ ExecStart=/usr/lib/coreos/kubelet-wrapper \
   --rkt-stage1-image=coreos.com/rkt/stage1-coreos \
   --config=/etc/kubernetes/manifests \
   --cluster_dns=${DNS_SERVICE_IP} \
-  --cluster_domain=cluster.local
+  --cluster_domain=cluster.local \
+  --cni-conf-dir=/etc/kubernetes/cni/net.d \
+  --network-plugin=cni
 Restart=always
 RestartSec=10
 
@@ -140,6 +145,7 @@ EOF
 	template manifests/controller/kube-scheduler.yaml /srv/kubernetes/manifests/kube-scheduler.yaml
 
 	template manifests/cluster/kube-system.json /srv/kubernetes/manifests/kube-system.json
+	template manifests/cluster/calico.yaml /srv/kubernetes/manifests/calico.yaml
 	template manifests/cluster/kube-dns-rc.yaml /srv/kubernetes/manifests/kube-dns-rc.yaml
 	template manifests/cluster/kube-dns-svc.yaml /srv/kubernetes/manifests/kube-dns-svc.yaml
 
@@ -180,6 +186,34 @@ EOF
 [Unit]
 Requires=flanneld.service
 After=flanneld.service
+[Service]
+EnvironmentFile=/etc/kubernetes/cni/docker_opts_cni.env
+EOF
+	}
+
+    local TEMPLATE=/etc/kubernetes/cni/docker_opts_cni.env
+	[ -f $TEMPLATE ] || {
+		echo "TEMPLATE: $TEMPLATE"
+		mkdir -p $(dirname $TEMPLATE)
+		cat << EOF > $TEMPLATE
+DOCKER_OPT_BIP=""
+DOCKER_OPT_IPMASQ="
+EOF
+	}
+
+	mkdir -p etc/kubernetes/cni/net.d
+	local TEMPLATE=/etc/kubernetes/cni/net.d/10-flannel.conf
+	[ -f $TEMPLATE ] || {
+		echo "TEMPLATE: $TEMPLATE"
+		mkdir -p $(dirname $TEMPLATE)
+		cat << EOF > $TEMPLATE
+{
+    "name": "podnet",
+    "type": "flannel",
+    "delegate": {
+        "isDefaultGateway": true
+    }
+}
 EOF
 	}
 }
@@ -193,6 +227,8 @@ function start_addons {
 	echo
 	echo "K8S: kube-system namespace"
 	curl --silent -XPOST -H "Content-Type: application/json" -d"$(cat /srv/kubernetes/manifests/kube-system.json)" "http://127.0.0.1:8080/api/v1/namespaces" > /dev/null
+	echo "K8S: Calico"
+	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/calico.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/replicationcontrollers" > /dev/null
 	echo "K8S: DNS addon"
 	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/kube-dns-rc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/replicationcontrollers" > /dev/null
 	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/kube-dns-svc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null

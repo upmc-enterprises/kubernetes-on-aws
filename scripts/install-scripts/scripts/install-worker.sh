@@ -10,8 +10,8 @@ export ETCD_ENDPOINTS=
 export CONTROLLER_ENDPOINT=
 
 # Specify the version (vX.Y.Z) of Kubernetes assets to deploy
-export K8S_RKT_VER=v1.5.1_coreos.0
-export K8S_VER=v1.5.1
+export K8S_RKT_VER=v1.5.7_coreos.0
+export K8S_VER=v1.5.7
 
 # Hyperkube image repository to use.
 export HYPERKUBE_IMAGE_REPO=quay.io/coreos/hyperkube
@@ -66,6 +66,8 @@ function init_docker {
 [Unit]
 Requires=flanneld.service
 After=flanneld.service
+[Service]
+EnvironmentFile=/etc/kubernetes/cni/docker_opts_cni.env
 EOF
 	}
 
@@ -92,10 +94,13 @@ Environment="RKT_OPTS=--volume dns,kind=host,source=/etc/resolv.conf \
   --volume stage,kind=host,source=/tmp \
   --mount volume=stage,target=/tmp \
   --volume var-log,kind=host,source=/var/log \
-  --mount volume=var-log,target=/var/log"
+  --mount volume=var-log,target=/var/log \
+  --volume cni-bin,kind=host,source=/opt/cni/bin \
+  --mount volume=cni-bin,target=/opt/cni/bin"
 ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests
 ExecStartPre=/usr/bin/mkdir -p /var/log/containers
 ExecStartPre=/usr/bin/mkdir -p /opt/bin/host-rkt
+ExecStartPre=/usr/bin/mkdir -p /opt/cni/bin
 ExecStart=/usr/lib/coreos/kubelet-wrapper \
   --api_servers=${CONTROLLER_ENDPOINT} \
   --register-node=true \
@@ -108,7 +113,9 @@ ExecStart=/usr/lib/coreos/kubelet-wrapper \
   --cloud-provider=aws \
   --kubeconfig=/etc/kubernetes/worker-kubeconfig.yaml \
   --tls-cert-file=/etc/kubernetes/ssl/worker.pem \
-  --tls-private-key-file=/etc/kubernetes/ssl/worker-key.pem
+  --tls-private-key-file=/etc/kubernetes/ssl/worker-key.pem \
+  --cni-conf-dir=/etc/kubernetes/cni/net.d \
+  --network-plugin=cni
 Restart=always
 RestartSec=10
 
@@ -128,6 +135,32 @@ EOF
 		cat << EOF > $TEMPLATE
 FLANNELD_IFACE=$ADVERTISE_IP
 FLANNELD_ETCD_ENDPOINTS=$ETCD_ENDPOINTS
+EOF
+	}
+
+	    local TEMPLATE=/etc/kubernetes/cni/docker_opts_cni.env
+	[ -f $TEMPLATE ] || {
+		echo "TEMPLATE: $TEMPLATE"
+		mkdir -p $(dirname $TEMPLATE)
+		cat << EOF > $TEMPLATE
+DOCKER_OPT_BIP=""
+DOCKER_OPT_IPMASQ="
+EOF
+	}
+
+	mkdir -p etc/kubernetes/cni/net.d
+	local TEMPLATE=/etc/kubernetes/cni/net.d/10-flannel.conf
+	[ -f $TEMPLATE ] || {
+		echo "TEMPLATE: $TEMPLATE"
+		mkdir -p $(dirname $TEMPLATE)
+		cat << EOF > $TEMPLATE
+{
+    "name": "podnet",
+    "type": "flannel",
+    "delegate": {
+        "isDefaultGateway": true
+    }
+}
 EOF
 	}
 
