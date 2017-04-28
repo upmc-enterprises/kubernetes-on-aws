@@ -145,7 +145,9 @@ EOF
 	template manifests/controller/kube-scheduler.yaml /srv/kubernetes/manifests/kube-scheduler.yaml
 
 	template manifests/cluster/kube-system.json /srv/kubernetes/manifests/kube-system.json
-	template manifests/cluster/calico.yaml /srv/kubernetes/manifests/calico.yaml
+	template manifests/cluster/calico.yaml /srv/kubernetes/manifests/calico-configmap.yaml
+	template manifests/cluster/calico.yaml /srv/kubernetes/manifests/calico-replicaset.yaml
+	template manifests/cluster/calico.yaml /srv/kubernetes/manifests/calico-daemonset.yaml
 	template manifests/cluster/kube-dns-rc.yaml /srv/kubernetes/manifests/kube-dns-rc.yaml
 	template manifests/cluster/kube-dns-svc.yaml /srv/kubernetes/manifests/kube-dns-svc.yaml
 
@@ -228,7 +230,9 @@ function start_addons {
 	echo "K8S: kube-system namespace"
 	curl --silent -XPOST -H "Content-Type: application/json" -d"$(cat /srv/kubernetes/manifests/kube-system.json)" "http://127.0.0.1:8080/api/v1/namespaces" > /dev/null
 	echo "K8S: Calico"
-	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/calico.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/replicationcontrollers" > /dev/null
+	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/calico-configmap.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/configmaps" > /dev/null
+	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/calico-daemonset.yaml)" "http://127.0.0.1:8080/apis/extension/v1beta1/namespaces/kube-system/daemonsets" > /dev/null
+	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/calico.yaml)" "http://127.0.0.1:8080/apis/extension/v1beta1/namespaces/kube-system/replicaset" > /dev/null
 	echo "K8S: DNS addon"
 	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/kube-dns-rc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/replicationcontrollers" > /dev/null
 	curl --silent -XPOST -H "Content-Type: application/yaml" -d"$(cat /srv/kubernetes/manifests/kube-dns-svc.yaml)" "http://127.0.0.1:8080/api/v1/namespaces/kube-system/services" > /dev/null
