@@ -10,7 +10,7 @@
         "stable": "ami-e3d6ab90"
       },
       "us-east-1": {
-        "stable": "ami-7ee7e169"
+        "stable": "ami-6bb93c7d"
       },
       "us-east-2": {
         "stable": "ami-f8aaf09d"
@@ -33,7 +33,7 @@
       "Type": "String"
     },
     "ArtifactURL": {
-      "Default": "https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/scripts/install-scripts",
+      "Default": "https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/v1.6.7/scripts/install-scripts",
       "Description": "Public location of kubernetes deployment artifacts",
       "Type": "String"
     },
@@ -269,48 +269,6 @@
       },
       "Type": "AWS::AutoScaling::AutoScalingGroup"
     },
-    "MasterELB": {
-      "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
-      "Properties": {
-        "Instances": [
-          {
-            "Ref": "InstanceController"
-          }
-        ],
-        "SecurityGroups": [
-          {
-            "Ref": "SecurityGroupELB"
-          }
-        ],
-        "HealthCheck": {
-          "HealthyThreshold": "2",
-          "Interval": "30",
-          "Target": "HTTP:8080/healthz",
-          "Timeout": "5",
-          "UnhealthyThreshold": "2"
-        },
-        "Scheme": "internal",
-        "Subnets": [
-          {
-            "Ref": "k8sSubnetA"
-          },
-          {
-            "Ref": "k8sSubnetA"
-          },
-          {
-            "Ref": "k8sSubnetA"
-          }
-        ],
-        "Listeners": [
-          {
-            "InstancePort": "443",
-            "InstanceProtocol": "TCP",
-            "LoadBalancerPort": "443",
-            "Protocol": "TCP"
-          }
-        ]
-      }
-    },
     "IAMInstanceProfileController": {
       "Properties": {
         "Path": "/",
@@ -503,7 +461,7 @@
             "Fn::Join": [
               "",
               [
-                "#cloud-config\ncoreos:\n  update:\n    reboot-strategy: \"off\"\n\n  flannel:\n    interface: $private_ipv4\n\n  etcd2:\n    name: controller\n    advertise-client-urls: http://$private_ipv4:2379\n    initial-advertise-peer-urls: http://$private_ipv4:2380\n    listen-client-urls: http://0.0.0.0:2379\n    listen-peer-urls: http://0.0.0.0:2380\n    initial-cluster: controller=http://$private_ipv4:2380\n\n  units:\n  - name: etcd2.service\n    command: start\n\n  - name: install-controller.service\n    command: start\n    content: |\n      [Service]\n      ExecStart=/bin/bash /tmp/install-controller.sh\n      Type=oneshot\n\nwrite_files:\n- path: /run/coreos-kubernetes/options.env\n  content: |\n    ETCD_ENDPOINTS=http://127.0.0.1:2379\n    ARTIFACT_URL=",
+                "#cloud-config\ncoreos:\n  update:\n    reboot-strategy: \"off\"\n\n  flannel:\n    interface: $private_ipv4\n\n  units:\n  - name: install-controller.service\n    command: start\n    content: |\n      [Service]\n      ExecStart=/bin/bash /tmp/install-controller.sh\n      Type=oneshot\n\nwrite_files:\n- path: /run/coreos-kubernetes/options.env\n  content: |\n    ETCD_ENDPOINTS=http://127.0.0.1:2379\n    ARTIFACT_URL=",
                 {
                   "Ref": "ArtifactURL"
                 },

@@ -10,8 +10,8 @@ export ETCD_ENDPOINTS=
 export CONTROLLER_ENDPOINT=
 
 # Specify the version (vX.Y.Z) of Kubernetes assets to deploy
-export K8S_RKT_VER=v1.5.6_coreos.0
-export K8S_VER=v1.5.6
+export K8S_RKT_VER=v1.6.7_coreos.0
+export K8S_VER=v1.6.7
 
 # Hyperkube image repository to use.
 export HYPERKUBE_IMAGE_REPO=quay.io/coreos/hyperkube
@@ -58,7 +58,7 @@ function init_config {
 }
 
 function init_docker {
-	local TEMPLATE=/etc/systemd/system/docker.service.d/40-flannel.conf
+	local TEMPLATE= 
 	[ -f $TEMPLATE ] || {
 		echo "TEMPLATE: $TEMPLATE"
 		mkdir -p $(dirname $TEMPLATE)
@@ -81,9 +81,9 @@ function init_templates {
 		mkdir -p $(dirname $TEMPLATE)
 		cat << EOF > $TEMPLATE
 [Service]
-Environment=KUBELET_VERSION=${K8S_RKT_VER}
-Environment=KUBELET_ACI=${HYPERKUBE_IMAGE_REPO}
-Environment="RKT_OPTS=--volume dns,kind=host,source=/etc/resolv.conf \
+Environment=KUBELET_IMAGE_TAG=${K8S_RKT_VER}
+Environment=KUBELET_IMAGE_URL=${HYPERKUBE_IMAGE_REPO}
+Environment="RKT_RUN_ARGS=--volume dns,kind=host,source=/etc/resolv.conf \
   --mount volume=dns,target=/etc/resolv.conf \
   --volume rkt,kind=host,source=/opt/bin/host-rkt \
   --mount volume=rkt,target=/usr/bin/rkt \
@@ -102,7 +102,7 @@ ExecStart=/usr/lib/coreos/kubelet-wrapper \
   --allow-privileged=true \
   --rkt-path=/usr/bin/rkt \
   --rkt-stage1-image=coreos.com/rkt/stage1-coreos \
-  --config=/etc/kubernetes/manifests \
+  --pod-manifest-path=/etc/kubernetes/manifests \
   --cluster_dns=${DNS_SERVICE_IP} \
   --cluster_domain=cluster.local \
   --cloud-provider=aws \
