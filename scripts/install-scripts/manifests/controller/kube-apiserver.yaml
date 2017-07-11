@@ -19,15 +19,14 @@ spec:
     - --secure-port=443
     - --insecure-port=8080
     - --advertise-address=${ADVERTISE_IP}
+    - --admission-control=NamespaceLifecycle,NamespaceExists,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota
     - --tls-cert-file=/etc/kubernetes/ssl/apiserver.pem
     - --tls-private-key-file=/etc/kubernetes/ssl/apiserver-key.pem
     - --client-ca-file=/etc/kubernetes/ssl/ca.pem
     - --service-account-key-file=/etc/kubernetes/ssl/apiserver-key.pem
     - --cloud-provider=aws
-    - --storage-backend=etcd2 
-    - --storage-media-type=application/json
     - --runtime-config=batch/v2alpha1=true
-    - --admission-control=NamespaceLifecycle,LimitRanger,ServiceAccount,DefaultStorageClass,ResourceQuota
+    - --admission_control=NamespaceLifecycle,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota,PersistentVolumeLabel
     ports:
     - containerPort: 443
       hostPort: 443
