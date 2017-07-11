@@ -117,7 +117,7 @@ ExecStart=/usr/lib/coreos/kubelet-wrapper \
   --api_servers=http://127.0.0.1:8080 \
   --register-node=false \
   --allow-privileged=true \
-  --rkt-path=/usr/bin/rkt \
+	--rkt-path=/usr/bin/rkt \
   --rkt-stage1-image=coreos.com/rkt/stage1-coreos \
   --pod-manifest-path=/etc/kubernetes/manifests \
   --cluster_dns=${DNS_SERVICE_IP} \
@@ -130,45 +130,48 @@ WantedBy=multi-user.target
 EOF
 	}
 
-	local ETCD_TEMPLATE=/etc/systemd/system/etcd-member.service
-	[ -f $ETCD_TEMPLATE ] || {
-		echo "ETCD_TEMPLATE: $ETCD_TEMPLATE"
-		mkdir -p $(dirname $ETCD_TEMPLATE)
-		cat << EOF > $ETCD_TEMPLATE
-[Unit]
-Description=etcd (System Application Container)
-Documentation=https://github.com/coreos/etcd
-Wants=network.target
-Conflicts=etcd.service
-Conflicts=etcd2.service
+# 	local ETCD_TEMPLATE=/etc/systemd/system/etcd-member.service
+# 	[ -f $ETCD_TEMPLATE ] || {
+# 		echo "ETCD_TEMPLATE: $ETCD_TEMPLATE"
+# 		mkdir -p $(dirname $ETCD_TEMPLATE)
+# 		cat << EOF > $ETCD_TEMPLATE
+# [Unit]
+# Description=etcd (System Application Container)
+# Documentation=https://github.com/coreos/etcd
+# Wants=network.target
+# Conflicts=etcd.service
+# Conflicts=etcd2.service
 
-[Service]
-Type=notify
-Restart=on-failure
-RestartSec=10s
-TimeoutStartSec=0
-LimitNOFILE=40000
+# [Service]
+# Type=notify
+# Restart=on-failure
+# RestartSec=10s 
+# TimeoutStartSec=0
+# LimitNOFILE=40000
 
-Environment="ETCD_IMAGE_TAG=v2.3.8"
-Environment="ETCD_NAME=%m"
-Environment="ETCD_USER=etcd"
-Environment="ETCD_DATA_DIR=/var/lib/etcd"
-Environment="RKT_RUN_ARGS=--uuid-file-save=/var/lib/coreos/etcd-member-wrapper.uuid"
-Environment="ETCD_OPTS=--advertise-client-urls: http://10.0.70.50:2379 \
-    --initial-advertise-peer-urls: http://10.0.70.50:2380 \
-	--listen-client-urls: http://0.0.0.0:2379 \
-	--listen-peer-urls: http://0.0.0.0:2380 \
-	--initial-cluster: controller=http://10.0.70.50:2380"
+# Environment="ETCD_IMAGE_TAG=v3.0.10"
+# Environment="ETCD_NAME=%m"
+# Environment="ETCD_USER=etcd"
+# Environment="ETCD_DATA_DIR=/var/lib/etcd"
+# Environment="RKT_RUN_ARGS=--uuid-file-save=/var/lib/coreos/etcd-member-wrapper.uuid"
+# Environment="ETCD_OPTS=--advertise-client-urls: https://10.0.70.50:2379 \
+#     --initial-advertise-peer-urls: https://10.0.70.50:2380 \
+# 	--listen-client-urls: https://0.0.0.0:2379 \
+# 	--listen-peer-urls: https://0.0.0.0:2380 \
+# 	--initial-cluster: controller=https://10.0.70.50:2380"
+# 	--etcd_cafile: /etc/ssl/etcd/ca.pem
+#     --etcd_certfile: /etc/ssl/etcd/client.pem
+#     --etcd_keyfile: /etc/ssl/etcd/client-key.pem
 
-ExecStartPre=/usr/bin/mkdir --parents /var/lib/coreos
-ExecStartPre=-/usr/bin/rkt rm --uuid-file=/var/lib/coreos/etcd-member-wrapper.uuid
-ExecStart=/usr/lib/coreos/etcd-wrapper $ETCD_OPTS
-ExecStop=-/usr/bin/rkt stop --uuid-file=/var/lib/coreos/etcd-member-wrapper.uuid
+# ExecStartPre=/usr/bin/mkdir --parents /var/lib/coreos
+# ExecStartPre=-/usr/bin/rkt rm --uuid-file=/var/lib/coreos/etcd-member-wrapper.uuid
+# ExecStart=/usr/lib/coreos/etcd-wrapper $ETCD_OPTS
+# ExecStop=-/usr/bin/rkt stop --uuid-file=/var/lib/coreos/etcd-member-wrapper.uuid
 
-[Install]
-WantedBy=multi-user.target
-EOF
-	}
+# [Install]
+# WantedBy=multi-user.target
+# EOF
+# 	}
 
 	mkdir -p /etc/kubernetes/manifests
 	template manifests/controller/kube-proxy.yaml /etc/kubernetes/manifests/kube-proxy.yaml
