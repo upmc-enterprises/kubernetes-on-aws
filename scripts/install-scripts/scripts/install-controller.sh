@@ -5,8 +5,8 @@ set -e
 export ETCD_ENDPOINTS=
 
 # Specify the version (vX.Y.Z) of Kubernetes assets to deploy
-export K8S_RKT_VER=v1.6.7_coreos.0
-export K8S_VER=v1.6.7
+export K8S_RKT_VER=v1.5.7_coreos.0
+export K8S_VER=v1.5.7
 
 # Hyperkube image repository to use.
 export HYPERKUBE_IMAGE_REPO=quay.io/coreos/hyperkube
@@ -128,46 +128,7 @@ RestartSec=10
 [Install]
 WantedBy=multi-user.target
 EOF
-	}
-
-	local ETCD_TEMPLATE=/etc/systemd/system/etcd-member.service
-	[ -f $ETCD_TEMPLATE ] || {
-		echo "ETCD_TEMPLATE: $ETCD_TEMPLATE"
-		mkdir -p $(dirname $ETCD_TEMPLATE)
-		cat << EOF > $ETCD_TEMPLATE
-[Unit]
-Description=etcd (System Application Container)
-Documentation=https://github.com/coreos/etcd
-Wants=network.target
-Conflicts=etcd.service
-Conflicts=etcd2.service
-
-[Service]
-Type=notify
-Restart=on-failure
-RestartSec=10s
-TimeoutStartSec=0
-LimitNOFILE=40000
-
-Environment="ETCD_IMAGE_TAG=v2.3.8"
-Environment="ETCD_NAME=%m"
-Environment="ETCD_USER=etcd"
-Environment="ETCD_DATA_DIR=/var/lib/etcd"
-Environment="RKT_RUN_ARGS=--uuid-file-save=/var/lib/coreos/etcd-member-wrapper.uuid"
-Environment="ETCD_OPTS=--advertise-client-urls: http://10.0.70.50:2379 \
-    --initial-advertise-peer-urls: http://10.0.70.50:2380 \
-	--listen-client-urls: http://0.0.0.0:2379 \
-	--listen-peer-urls: http://0.0.0.0:2380 \
-	--initial-cluster: controller=http://10.0.70.50:2380"
-
-ExecStartPre=/usr/bin/mkdir --parents /var/lib/coreos
-ExecStartPre=-/usr/bin/rkt rm --uuid-file=/var/lib/coreos/etcd-member-wrapper.uuid
-ExecStart=/usr/lib/coreos/etcd-wrapper $ETCD_OPTS
-ExecStop=-/usr/bin/rkt stop --uuid-file=/var/lib/coreos/etcd-member-wrapper.uuid
-
-[Install]
-WantedBy=multi-user.target
-EOF
+	
 	}
 
 	mkdir -p /etc/kubernetes/manifests
