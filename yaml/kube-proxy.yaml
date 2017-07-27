@@ -7,12 +7,11 @@ spec:
   hostNetwork: true
   containers:
   - name: kube-proxy
-    image: gcr.io/google_containers/hyperkube:${K8S_VER}
+    image: gcr.io/google_containers/hyperkube:v1.7.2
     command:
     - /hyperkube
     - proxy
     - --master=http://127.0.0.1:8080
-    - --proxy-mode=iptables
     securityContext:
       privileged: true
     volumeMounts:

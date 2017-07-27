@@ -1,0 +1,188 @@
+etcd:
+  version:                     "3.2.4"
+  name:                        "10.0.70.50"
+  advertise_client_urls:       "http://10.0.70.50:2379"
+  initial_advertise_peer_urls: "http://10.0.70.50:2380"
+  listen_client_urls:          "http://0.0.0.0:2379"
+  listen_peer_urls:            "http://10.0.70.50:2380"
+  initial_cluster:             "10.0.70.50=http://10.0.70.50:2380"
+
+flannel:
+  version:     "0.7.1"
+  etcd_prefix: "/coreos.com/network"
+
+systemd:
+  units:
+    - name: "rpcbind.service"
+      enable: true
+    - name: flanneld.service
+      dropins:
+        - name: 50-network-config.conf
+          contents: |
+            [Service]
+            ExecStartPre=/usr/bin/curl -X PUT -d "value={\"Network\":\"10.2.0.0/16\"}" "http://127.0.0.1:2379/v2/keys/coreos.com/network/config?prevExist=false"
+    - name: "docker.service"
+      dropins:
+        - name: "40-flannel.conf"
+          contents: |
+            [Unit]
+            Requires=flanneld.service
+            After=flanneld.service
+            [Service]
+            Restart=always
+    - name: "kubelet.service"
+      enable: true
+      contents: |
+        [Service]
+        Environment=KUBELET_IMAGE_TAG=v1.7.2_coreos.0
+        Environment="RKT_RUN_ARGS=--uuid-file-save=/var/run/kubelet-pod.uuid \
+          --volume var-log,kind=host,source=/var/log \
+          --mount volume=var-log,target=/var/log \
+          --volume dns,kind=host,source=/etc/resolv.conf \
+          --mount volume=dns,target=/etc/resolv.conf"
+        ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests
+        ExecStartPre=/usr/bin/mkdir -p /var/log/containers
+        ExecStartPre=-/usr/bin/rkt rm --uuid-file=/var/run/kubelet-pod.uuid
+        ExecStart=/usr/lib/coreos/kubelet-wrapper \
+          --api-servers=http://127.0.0.1:8080 \
+          --register-schedulable=false \
+          --register-node=false \
+          --cni-conf-dir=/etc/kubernetes/cni/net.d \
+          --container-runtime=docker \
+          --allow-privileged=true \
+          --pod-manifest-path=/etc/kubernetes/manifests \
+          --hostname-override=ip-10-0-70-50.ec2.internal \
+          --cluster_dns=10.3.0.10 \
+          --cluster_domain=cluster.local
+        ExecStop=-/usr/bin/rkt stop --uuid-file=/var/run/kubelet-pod.uuid
+        Restart=always
+        RestartSec=10
+
+        [Install]
+        WantedBy=multi-user.target
+        
+storage:
+  files:
+    - path: "/etc/sysctl.d/sysctl.conf"
+      filesystem: "root"
+      mode: 644
+      contents:
+        inline: |
+          vm.max_map_count = 262144
+    - path: "/etc/kubernetes/manifests/kube-apiserver.yaml"
+      filesystem: "root"
+      mode: 644
+      contents:
+        remote: 
+          url: https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/yaml/apiserver.yaml
+    - path: "/etc/kubernetes/manifests/kube-proxy.yaml"
+      filesystem: "root"
+      mode: 644
+      contents:
+        remote: 
+          url: https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/yaml/kube-proxy.yaml
+    - path: "/etc/kubernetes/manifests/kube-controller-manager.yaml"
+      filesystem: "root"
+      mode: 644
+      contents:
+        remote: 
+          url: https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/yaml/controller-manager.yaml
+    - path: "/etc/kubernetes/manifests/kube-scheduler.yaml"
+      filesystem: "root"
+      mode: 644
+      contents:
+        remote: 
+          url: https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/yaml/scheduler.yaml
+    - path: "/etc/kubernetes/cni/net.d/10-flannel.conf"
+      filesystem: "root"
+      mode: 644
+      contents:
+        inline: |
+          {
+            "name": "podnet",
+            "type": "flannel",
+            "delegate": {
+              "isDefaultGateway": true
+            }
+          }
+    - path: "/etc/kubernetes/ssl/ca.pem"
+      filesystem: "root"
+      mode: 644
+      contents:
+        inline: |
+          -----BEGIN CERTIFICATE-----
+          MIIDGjCCAgKgAwIBAgIJAJ9qEsLLV83PMA0GCSqGSIb3DQEBBQUAMBIxEDAOBgNV
+          BAMTB2t1YmUtY2EwHhcNMTcwNzMxMTgzOTU0WhcNNDQxMjE2MTgzOTU0WjASMRAw
+          DgYDVQQDEwdrdWJlLWNhMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA
+          qjq0ZoCHwERNz04P5yohyYVSNL9F/oOB+dzn7rU4VGGP8zIcESHDRKUi61D4Sayw
+          KpobZKiu7qEqV/oRwY/Cwp47z+zvArw9oaMEr/sl/S0bkuRUVIwj76WyokQOYWN3
+          5znxWun+kOVw1fnCqbzq4oFLdhdwqL8YP96T3MwMKe+XccFFHZQrzSqWLYrahkGe
+          k+CMbm5zWespHDnPRWOXTYqQR6l7mWLTreAWrE3yanZ80yTkdBHwJ7Fi2ibG88fG
+          2KwvWZnwFMvTgJM9SJ4mWEztIkygDyxRPjvBFal65MnxRQJnjkzi2GcefcXTX1TM
+          RefJ+KmtEMmx1mKXdszNLwIDAQABo3MwcTAdBgNVHQ4EFgQUu6RK2Do+7spfaAm7
+          eT4ZQsD1EDgwQgYDVR0jBDswOYAUu6RK2Do+7spfaAm7eT4ZQsD1EDihFqQUMBIx
+          EDAOBgNVBAMTB2t1YmUtY2GCCQCfahLCy1fNzzAMBgNVHRMEBTADAQH/MA0GCSqG
+          SIb3DQEBBQUAA4IBAQAxEyEsrwT5IDTBBgxaMPOwEPWJqB0KE10m9L6Z6IP7Q/Ee
+          KaeaaZX8rHOIUGlF1fUdHfYxFw1NV4J5fORum7yXRB3CBftsplzyOW6paeNt5Gal
+          VHz9cxgNygWHOfbTKFJVa9HEh+pYbp0Ko07Cbj8Ev7bH6aQjU04IfaZEMhI1Y/WQ
+          AT7m7R27ttIWX2RueVRdBaGNMUweBWg5Smnof+xiuQIoJNzzqFVRUOurvTAJw3rd
+          FNiDDb8ozm04sYmNN4bgbQyyYNrO30BsNJpA7p9qr92bV3zU4fGC9mndQI1n2u7O
+          lLGCuXbyMuhTp/upUcJTjxA9vXsfzlZF5OW+WcsR
+          -----END CERTIFICATE----- 
+    - path: "/etc/kubernetes/ssl/apiserver.pem"
+      filesystem: "root"
+      mode: 644
+      contents:
+        inline: |
+          -----BEGIN CERTIFICATE-----
+          MIIDPzCCAiegAwIBAgIJAJxrbQ79ntkKMA0GCSqGSIb3DQEBBQUAMBIxEDAOBgNV
+          BAMTB2t1YmUtY2EwHhcNMTcwNzMxMTgzOTU3WhcNMTgwNzMxMTgzOTU3WjAZMRcw
+          FQYDVQQDDA5rdWJlLWFwaXNlcnZlcjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCC
+          AQoCggEBANDgJn7vsIEuYOmmkZCOQ9VExgjJVOIHIikelkhxPk9ixz6tLkiKAU02
+          lfO9Bp9TrtvLaK3Cryg2AkJANEG41S8p64K22hIbnfPEkcqTHYyJYZ+zfs/R/Axm
+          eOnZd2qTZ7TZbVpCjaUnEbY7bJxWqAfS23jFfAlGmMRwzcyDxg6xVmDWNFd/Sxjb
+          I94VQBeaHoKjHVAZfjSxvY9j/kpysTIbEs3jV2YzF13YrJhluUxX88kb3o5O609X
+          AfY4RN3kXubX3fASMjzFqeE6Q6jyqo+wlJzrTCzAfxHQi5eNom35ANY6WjNTTf0W
+          x4cJZD5NujuYZjS6dKGMmoh6bnuBdnMCAwEAAaOBkDCBjTAJBgNVHRMEAjAAMAsG
+          A1UdDwQEAwIF4DBzBgNVHREEbDBqggprdWJlcm5ldGVzghJrdWJlcm5ldGVzLmRl
+          ZmF1bHSCFmt1YmVybmV0ZXMuZGVmYXVsdC5zdmOCJGt1YmVybmV0ZXMuZGVmYXVs
+          dC5zdmMuY2x1c3Rlci5sb2NhbIcECgMAAYcECgBGMjANBgkqhkiG9w0BAQUFAAOC
+          AQEAdxqlgPoymDQTM3vX12u3kuTGAQvPMNzWkBBNAjRa2D+HJSMk2tYWkXuDm/OU
+          ghZPlfvdDe4UkdtrZ82zcU8CZIfUEjxm1aZUSCBHXQh+TkdhhEg4VXyRN/8meR5z
+          c/o1LfPEPA8z9QcJYVDyZUBObJUeITtjzQEAOikcak2QXaphOFM7EEDkwZ3pDeQ6
+          BB7iAtq1GPGAobEXWwWTB1x58vPYmIbXjcSupHyzl7dhuYdo7GR9xRicfnilwuYk
+          GVOvOw8oquJa/Up7ycZR9K9B4pTIVpzl3WBDRJ1nhMVn3R6IN3F3GNtw6q+NvQe4
+          YcvDOQbJzryoVhhrGPEykyW7ZA==
+          -----END CERTIFICATE-----
+    - path: "/etc/kubernetes/ssl/apiserver-key.pem"
+      filesystem: "root"
+      mode: 644
+      contents:
+        inline: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpQIBAAKCAQEA0OAmfu+wgS5g6aaRkI5D1UTGCMlU4gciKR6WSHE+T2LHPq0u
+          SIoBTTaV870Gn1Ou28torcKvKDYCQkA0QbjVLynrgrbaEhud88SRypMdjIlhn7N+
+          z9H8DGZ46dl3apNntNltWkKNpScRtjtsnFaoB9LbeMV8CUaYxHDNzIPGDrFWYNY0
+          V39LGNsj3hVAF5oegqMdUBl+NLG9j2P+SnKxMhsSzeNXZjMXXdismGW5TFfzyRve
+          jk7rT1cB9jhE3eRe5tfd8BIyPMWp4TpDqPKqj7CUnOtMLMB/EdCLl42ibfkA1jpa
+          M1NN/RbHhwlkPk26O5hmNLp0oYyaiHpue4F2cwIDAQABAoIBAQDOzC2w3TQeIcHX
+          co+J1CA6pTV/+3zrr25V0a+ul1e+lyh22FULgn7ZaGK8B3joA50KhW/lIOvz3s0L
+          tK9IJmwCnvlJ2Ck9ZlRSxVometL1kgqyZ670qIxn5oht1l2RidFSTzYh9+RvD6hM
+          iLb2biE8Zbne737nXBrh2mEWy5wqbAOwpXUokJqfVfmVQB1M0b+m2lbQMpow9J7/
+          bWn9ZZMWnklGlrYojQBdCOynGy1MCPGUZ9EjviWl3/gvIBoyFCr2KLKY5a46XdJf
+          0j3JDeNWt6rAmpQHQjyxRKzueZWY1X8d/40FCHb8Ami++6CAgJETfZMm+m82EfHj
+          Kja1aUJpAoGBAPonphhtpOouvcer9imZ1OpVUmNnqQpkTGiWr/BlYeLcVKSPozHm
+          8VUNHkSf8JMarOVnxnDWVyUxKUP9eRS5pFFl5jOH6qIyQsJD60Q5/s/dhtbQ4idS
+          t7adoXMKbZszflcvSrhlZ1TccxclmHtxyeicL4NBZ8I4ujYXCj3PlCFvAoGBANXB
+          lM4tJb5g2bQ6w12x57uC3Uis9MXpnKSsVW/eZko7pp92ik1TRsIdLghRLvJEaHhw
+          sRZB/35brIFER/uvrT8j1z94oCueFyTXXQN36vq8B9QWcwuFyUcCgaZIZLrc3YMS
+          VRG8+2lel9d/hgkJXX2ToEUleqfVbGgjunm0BPE9AoGBAI8TlmBqdeSrj0hhBo6M
+          uca9vj200G5tJ3a6mS66Dd6ffpoQvZqRKH8o3aMKh6LbowAi9tEbBwTytVN56oL8
+          GwujaKMYng7fCGfsSOfg8+kYH0NGfdNX8FO2nN0bnc0jCqP7HJWTCiLzY7BdhHU2
+          g/FTQ6mjAyGHKJo/W1A3JdZpAoGAGQAQGGEdZfvL2pF44g95q+utV9+qrS8afAQP
+          5gqb6hi57zKdEFgqEW/6P0zHcdxgX53GiHTlnfC451GGHcC5QYY+mZTRHujZihyK
+          K2quF+8/9yU9BV77YIvBgCI9bcGBQuA1BOMWgIdouPKYSZxHy/UlLJEqnFCQ4kkz
+          eSJ95X0CgYEAn9A/tbXPD0Ympb0KODoVp+3YMlXg2z8uc7WMgnhhdW8QgxaTbxo2
+          QCI9u8MZOCRjEZ1iQ9O6a1/vYcshTg1/QAt5xei6feOAU8dLKIkZCumwF60EkjeJ
+          GiYFobOB58i7RTw5RxHfGWRDrmptguuDu8DMXeh3kiXyotDJ72aMF5Q=
+          -----END RSA PRIVATE KEY----- 

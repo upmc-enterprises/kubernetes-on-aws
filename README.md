@@ -16,7 +16,7 @@ The network template is designed to provide a set of VPC's, subnets, and interne
 
 ![base-network](images/network.png)
 
-### cloudformation/k8s-template.json
+### cloudformation/k8s-template.yaml
 
 The k8s template is used to deploy a kubernetes cluster into the network-template or your own existing infrastructure. This is important as the k8s template was designed to not force users into any base infrastructure. All that is required to deploy the k8s template is a VPC, and a route table. The template creates it's own subnets and permissions, but everything else is left up to the user.
 
@@ -40,9 +40,33 @@ _NOTE: The network template provided is NOT required to use the k8s template._
 
 8. Create the base stack (`cloudformation/NetworkBaseline.json`) by navigating to AWS CloudFormation screen, and uploading file, then executing
 
-9. Create the Kubernetes stack (`cloudformation/k8s-template.json`) by navigating to the AWS CloudFormation screen, and uploading file, then executing. _NOTE: The table to use can be found named: `Route Table for Private Networks`._
+9. Update the ignition configs (`yaml/controller.yaml` & `yaml/node.yaml`) with certs generated in previous steps
+
+10. Transpile configs and copy into template (See [Generate ignition config](#generate-ignition-config))) 
+
+11. Create the Kubernetes stack (`cloudformation/k8s-template.yaml`) by navigating to the AWS CloudFormation screen, and uploading file, then executing. _NOTE: The table to use can be found named: `Route Table for Private Networks`._
 
 _NOTE: Only generate the RootCA once! If RootCA is regenerated, will need to re-create all certs._
+
+### Generate ignition config
+
+First download the container linux config transpiler to your local machine (See releases here: [ct transpiler](https://github.com/coreos/container-linux-config-transpiler/releases))
+
+```
+# Transpile the ignition config, then copy into the `k8s-template.yaml` to UserData section of InstanceController
+$ rm ignition.json && ct --in-file controller.yaml > ignition.json --platform ec2 
+
+# Transpile the ignition config, then copy into the `k8s-template.yaml` to UserData section of LaunchConfigurationWorker
+$ rm ignition.json && ct --in-file node.yaml > ignition.json --platform ec2 
+```
+
+### (Optional) Create Cloudformation via awscli:
+
+Use the following command to create the stack without needing to use the AWS Web UI:
+
+```
+ $ aws cloudformation create-stack --stack-name sloka-k8s --template-body file://k8s-template.yaml --parameters ParameterKey=ApplicationVPC,ParameterValue=vpc-45097a3c ParameterKey=ClusterName,ParameterValue=sloka-k8s ParameterKey=KeyName,ParameterValue=sloka-virginia ParameterKey=RouteTableNAT,ParameterValue=rtb-e7cbc79f --capabilities CAPABILITY_IAM 
+```
 
 ### Configure Kubectl
 
