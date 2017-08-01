@@ -2,15 +2,6 @@ systemd:
   units:
     - name: "rpcbind.service"
       enable: true
-    - name: "docker.service"
-      dropins:
-        - name: "40-flannel.conf"
-          contents: |
-            [Unit]
-            Requires=flanneld.service
-            After=flanneld.service
-            [Service]
-            Restart=always
     - name: "kubelet.service"
       enable: true
       contents: |
@@ -43,10 +34,6 @@ systemd:
 
         [Install]
         WantedBy=multi-user.target
-
-flannel:
-  version: "0.7.1"
-  etcd_endpoints: "http://10.0.70.50:2379"
 
 storage:
   files:
@@ -176,3 +163,6 @@ storage:
           NwQw4v+cmOmzxzIpFpFGOPgcWF9SkSJYkOm87W3m+NNMoBA5W+415d9Wb3HQ64Od
           JwBPuuvYIQv4+bSkKjX/SBW5Xa5kXrYdXBdiG6kvjs45t23qJu9c
           -----END RSA PRIVATE KEY-----
+
+locksmith:
+  reboot_strategy: "off"
