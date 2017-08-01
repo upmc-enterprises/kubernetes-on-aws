@@ -68,6 +68,13 @@ Use the following command to create the stack without needing to use the AWS Web
  $ aws cloudformation create-stack --stack-name sloka-k8s --template-body file://k8s-template.yaml --parameters ParameterKey=ApplicationVPC,ParameterValue=vpc-45097a3c ParameterKey=ClusterName,ParameterValue=sloka-k8s ParameterKey=KeyName,ParameterValue=sloka-virginia ParameterKey=RouteTableNAT,ParameterValue=rtb-e7cbc79f --capabilities CAPABILITY_IAM 
 ```
 
+### Create Cluster Addons
+
+```
+$ kubectl create -f https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/yaml/cluster/kube-dns-rc.yml
+$ kubectl create -f https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/yaml/cluster/kube-dns-svc.yml
+```
+
 ### Configure Kubectl
 
 Use the certs created in the generate certs section to configure local kubectl.
