@@ -1,0 +1,178 @@
+systemd:
+  units:
+    - name: "rpcbind.service"
+      enable: true
+    - name: "docker.service"
+      dropins:
+        - name: "40-flannel.conf"
+          contents: |
+            [Unit]
+            Requires=flanneld.service
+            After=flanneld.service
+            [Service]
+            Restart=always
+    - name: "kubelet.service"
+      enable: true
+      contents: |
+        [Service]
+        Environment=KUBELET_IMAGE_TAG=v1.7.2_coreos.0
+        Environment="RKT_RUN_ARGS=--uuid-file-save=/var/run/kubelet-pod.uuid \
+          --volume dns,kind=host,source=/etc/resolv.conf \
+          --mount volume=dns,target=/etc/resolv.conf \
+          --volume var-log,kind=host,source=/var/log \
+          --mount volume=var-log,target=/var/log"
+        ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests
+        ExecStartPre=/usr/bin/mkdir -p /var/log/containers
+        ExecStartPre=-/usr/bin/rkt rm --uuid-file=/var/run/kubelet-pod.uuid
+        ExecStart=/usr/lib/coreos/kubelet-wrapper \
+          --api-servers=https://10.0.70.50 \
+          --container-runtime=docker \
+          --register-node=true \
+          --allow-privileged=true \
+          --pod-manifest-path=/etc/kubernetes/manifests \
+          --cluster_dns=10.3.0.10 \
+          --cluster_domain=cluster.local \
+          --kubeconfig=/etc/kubernetes/worker-kubeconfig.yaml \
+          --tls-cert-file=/etc/kubernetes/ssl/worker.pem \
+          --tls-private-key-file=/etc/kubernetes/ssl/worker-key.pem \
+          --client-ca-file=/etc/kubernetes/ssl/ca.pem \
+          --cloud-provider=aws 
+        ExecStop=-/usr/bin/rkt stop --uuid-file=/var/run/kubelet-pod.uuid
+        Restart=always
+        RestartSec=10
+
+        [Install]
+        WantedBy=multi-user.target
+
+flannel:
+  version: "0.7.1"
+  etcd_endpoints: "http://10.0.70.50:2379"
+
+storage:
+  files:
+    - path: "/etc/sysctl.d/sysctl.conf"
+      filesystem: "root"
+      mode: 644
+      contents:
+        inline: |
+          vm.max_map_count = 262144
+    - path: "/etc/kubernetes/manifests/kube-proxy.yaml"
+      filesystem: "root"
+      mode: 644
+      contents:
+        remote: 
+          url: https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/yaml/kube-proxy.yaml
+    - path: "/etc/kubernetes/worker-kubeconfig.yaml"
+      filesystem: "root"
+      mode: 644
+      contents:
+        inline: |
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - name: local
+            cluster:
+              certificate-authority: /etc/kubernetes/ssl/ca.pem
+          users:
+          - name: kubelet
+            user:
+              client-certificate: /etc/kubernetes/ssl/worker.pem
+              client-key: /etc/kubernetes/ssl/worker-key.pem
+          contexts:
+          - context:
+              cluster: local
+              user: kubelet
+            name: kubelet-context
+          current-context: kubelet-context
+    - path: "/etc/kubernetes/cni/net.d/10-flannel.conf"
+      filesystem: "root"
+      mode: 644
+      contents:
+        inline: |
+          {
+            "name": "podnet",
+            "type": "flannel",
+            "delegate": {
+              "isDefaultGateway": true
+            }
+          }
+    - path: "/etc/kubernetes/ssl/ca.pem"
+      filesystem: "root"
+      mode: 644
+      contents:
+        inline: |
+          -----BEGIN CERTIFICATE-----
+          MIIDGjCCAgKgAwIBAgIJAJ9qEsLLV83PMA0GCSqGSIb3DQEBBQUAMBIxEDAOBgNV
+          BAMTB2t1YmUtY2EwHhcNMTcwNzMxMTgzOTU0WhcNNDQxMjE2MTgzOTU0WjASMRAw
+          DgYDVQQDEwdrdWJlLWNhMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA
+          qjq0ZoCHwERNz04P5yohyYVSNL9F/oOB+dzn7rU4VGGP8zIcESHDRKUi61D4Sayw
+          KpobZKiu7qEqV/oRwY/Cwp47z+zvArw9oaMEr/sl/S0bkuRUVIwj76WyokQOYWN3
+          5znxWun+kOVw1fnCqbzq4oFLdhdwqL8YP96T3MwMKe+XccFFHZQrzSqWLYrahkGe
+          k+CMbm5zWespHDnPRWOXTYqQR6l7mWLTreAWrE3yanZ80yTkdBHwJ7Fi2ibG88fG
+          2KwvWZnwFMvTgJM9SJ4mWEztIkygDyxRPjvBFal65MnxRQJnjkzi2GcefcXTX1TM
+          RefJ+KmtEMmx1mKXdszNLwIDAQABo3MwcTAdBgNVHQ4EFgQUu6RK2Do+7spfaAm7
+          eT4ZQsD1EDgwQgYDVR0jBDswOYAUu6RK2Do+7spfaAm7eT4ZQsD1EDihFqQUMBIx
+          EDAOBgNVBAMTB2t1YmUtY2GCCQCfahLCy1fNzzAMBgNVHRMEBTADAQH/MA0GCSqG
+          SIb3DQEBBQUAA4IBAQAxEyEsrwT5IDTBBgxaMPOwEPWJqB0KE10m9L6Z6IP7Q/Ee
+          KaeaaZX8rHOIUGlF1fUdHfYxFw1NV4J5fORum7yXRB3CBftsplzyOW6paeNt5Gal
+          VHz9cxgNygWHOfbTKFJVa9HEh+pYbp0Ko07Cbj8Ev7bH6aQjU04IfaZEMhI1Y/WQ
+          AT7m7R27ttIWX2RueVRdBaGNMUweBWg5Smnof+xiuQIoJNzzqFVRUOurvTAJw3rd
+          FNiDDb8ozm04sYmNN4bgbQyyYNrO30BsNJpA7p9qr92bV3zU4fGC9mndQI1n2u7O
+          lLGCuXbyMuhTp/upUcJTjxA9vXsfzlZF5OW+WcsR
+          -----END CERTIFICATE----- 
+    - path: "/etc/kubernetes/ssl/worker.pem"
+      filesystem: "root"
+      mode: 644
+      contents:
+        inline: |
+          -----BEGIN CERTIFICATE-----
+          MIIDBjCCAe6gAwIBAgIJAJxrbQ79ntkLMA0GCSqGSIb3DQEBBQUAMBIxEDAOBgNV
+          BAMTB2t1YmUtY2EwHhcNMTcwNzMxMTg0MDAyWhcNMTgwNzMxMTg0MDAyWjAmMSQw
+          IgYDVQQDDBt3b3JrZXIuazhzLmNsdXN0ZXIuaW50ZXJuYWwwggEiMA0GCSqGSIb3
+          DQEBAQUAA4IBDwAwggEKAoIBAQDb9goN37G/E3qkO9JaB/PzzWphKi+mrlCHU5Qm
+          EbVgqBbEFBUH1rktVumbebYlJKr3DBrX8I88kHeabhXue7JCMVIhSkbjNXjRDynv
+          tsG7sE9RqsdNUfcDBHnMJDIPMHEniL4X3uCQIaGTZzMcvpYNNPaozXaAB6kPKyAL
+          1efsq83K5F99pFO9y1pD04XePL8I523iz4b5jflA91gKsFWiyBOUz7V5qT5Y7lCo
+          Ibsm6GiidNLwU9ng1T8ah3hIvy2mHEVFHw0sFXM1iHk5J0r43LvtHYCYjc73Fuv/
+          /Qsq82iZzesUUYgRsCKMgcxYgS9DtAIGqn5NmH3xNKduWo4BAgMBAAGjSzBJMAkG
+          A1UdEwQCMAAwCwYDVR0PBAQDAgXgMC8GA1UdEQQoMCaCFCouKi5jbHVzdGVyLmlu
+          dGVybmFsgg4qLmVjMi5pbnRlcm5hbDANBgkqhkiG9w0BAQUFAAOCAQEAXcb9UumD
+          l34O06cglXlgKymhYO1VQqr437Vp24lZbCE5z97t528yhHGegaleMo2mRfPdvtJl
+          35cW+D1o9jbhChY3JJtYU4ABoKNEwA0oNd5Xccy7G+XDyhxx4rjdsVXX6QrG/gMX
+          cZqXYGyvYbYtqjSzwAHFYanJZDmBhfDjwfayYzgwlkx8k+iPpzJ3UigI2Rsc8qMy
+          Dd+Sg1zTcjPW1THvSXoVySAkQFIGHEPnLCVO86aZzmcOsji1FFOscfVIxf6pz8Fp
+          Vg4Z+uBga9Szw/KmYrn7JtdCJmlpVOtGnGymV/lzF9G7TPLCT8d7A2w/SyAnQGAZ
+          xx6ufGg2ihia1g==
+          -----END CERTIFICATE-----
+    - path: "/etc/kubernetes/ssl/worker-key.pem"
+      filesystem: "root"
+      mode: 644
+      contents:
+        inline: |
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEowIBAAKCAQEA2/YKDd+xvxN6pDvSWgfz881qYSovpq5Qh1OUJhG1YKgWxBQV
+          B9a5LVbpm3m2JSSq9wwa1/CPPJB3mm4V7nuyQjFSIUpG4zV40Q8p77bBu7BPUarH
+          TVH3AwR5zCQyDzBxJ4i+F97gkCGhk2czHL6WDTT2qM12gAepDysgC9Xn7KvNyuRf
+          faRTvctaQ9OF3jy/COdt4s+G+Y35QPdYCrBVosgTlM+1eak+WO5QqCG7JuhoonTS
+          8FPZ4NU/God4SL8tphxFRR8NLBVzNYh5OSdK+Ny77R2AmI3O9xbr//0LKvNomc3r
+          FFGIEbAijIHMWIEvQ7QCBqp+TZh98TSnblqOAQIDAQABAoIBAQDAZVkuAXgL1hH0
+          DY9UyJgNrKNcEfZUKSyu8eAn3F12ChC/uYEbtimLCvaS08cKfiQ8qw3fy76+Du9O
+          2PO+AdxOIa3hCIMwwdjHpCfeUVDrxq/akzJ44zTYItYWRaKzvn97QRRk9MIf0Arw
+          T9hZUCsXqjgGNpFsM0cgyWviblvKmmxphsJUHBbfWKuXDj9vuIIjULawu8RL98Mq
+          ONChuFQc358AJi3fqshXOAqyfGjqz+ys9muIfnRpUXx2wSjOrh2QW073X19X2y9u
+          AnrhhydOQSXYdFo9bAnNOsEwTESxUr+fgrts6yc2RXU03WZgFHWV4ig047XUguGb
+          +XAfQ85BAoGBAPlMWyoYi3rWyIi/jn2qTXVjAVkx2cTh9gWuNGHsErf+So3wIbfD
+          C8fdWX9CM+lzzLR2KK8ItLhHawN5zrrOn+41BE9tX229U4hOEKTfleGvxs5mvM3p
+          mWcXanAPPnAfWDtga81L2OylvO8LXEtaGtJJ0VlU1QpEEGvuc5vES94dAoGBAOHf
+          ybIs9aSi/USFtViGkihZ/As3mmZ42/82GrYfJbVpz3GsTVLFPgTPJPwUkLfIil6j
+          pYtSGKbX21qMWaMzY05h41HqnqKGxb5Y+zXradKDKE8NQRXspQY+pp05XtqBvThT
+          OJa4PVqNrE3FaJ62OBuDphxUGuTX6/iByOevLzo1AoGAQpCjyvKw04TkGLdlOaKu
+          egiMhJ9t8UcQZOXl8LuTJ/PLPmj+5805qQ0uZ29q4wvbfdgK9umRL59KMKxmibTA
+          OV+InhirIWcrFbsacJuOrqs7n0MJaMXWAxPahL9dQZzs9zXAsxlse4upjf5vj2Mo
+          xDuXnY2sMMiJxffugIoCY/UCgYAOqjfvMIoWUVq+Oywl/j65DfaWR9rnckteS4X6
+          cxVArQkB6Vzv1cyMBWLyVud6dzO8p0VVQVRGaNdeDqS3Otvkt+hJZkE8biGilSZi
+          PtGVEFzqnQKvyLiCKkkpBhOJfkjpwkV3S6j4GyCnv/xl6ZDFAIwlZLSGTRqN/Oct
+          W6tmTQKBgEcsFFyWyqzJPxhdjniesSSzKzejklMkFTnXGdq+tePAIlcIr83g3gFx
+          NwQw4v+cmOmzxzIpFpFGOPgcWF9SkSJYkOm87W3m+NNMoBA5W+415d9Wb3HQ64Od
+          JwBPuuvYIQv4+bSkKjX/SBW5Xa5kXrYdXBdiG6kvjs45t23qJu9c
+          -----END RSA PRIVATE KEY-----

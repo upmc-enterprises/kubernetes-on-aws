@@ -7,26 +7,32 @@ spec:
   hostNetwork: true
   containers:
   - name: kube-apiserver
-    image: gcr.io/google_containers/hyperkube:${K8S_VER}
+    image: gcr.io/google_containers/hyperkube:v1.7.2
     command:
     - /hyperkube
     - apiserver
     - --bind-address=0.0.0.0
-    - --insecure-bind-address=0.0.0.0
-    - --etcd-servers=${ETCD_ENDPOINTS}
+    - --etcd-servers=http://10.0.70.50:2379
     - --allow-privileged=true
-    - --service-cluster-ip-range=${SERVICE_IP_RANGE}
+    - --service-cluster-ip-range=10.3.0.0/24
     - --secure-port=443
-    - --insecure-port=8080
-    - --advertise-address=${ADVERTISE_IP}
-    - --admission-control=NamespaceLifecycle,NamespaceExists,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota
+    - --advertise-address=10.0.70.50
+    - --admission_control=NamespaceLifecycle,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota,PersistentVolumeLabel
     - --tls-cert-file=/etc/kubernetes/ssl/apiserver.pem
     - --tls-private-key-file=/etc/kubernetes/ssl/apiserver-key.pem
     - --client-ca-file=/etc/kubernetes/ssl/ca.pem
     - --service-account-key-file=/etc/kubernetes/ssl/apiserver-key.pem
-    - --cloud-provider=aws
+    - --runtime-config=extensions/v1beta1/networkpolicies=true
+    - --anonymous-auth=false
     - --runtime-config=batch/v2alpha1=true
-    - --admission_control=NamespaceLifecycle,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota,PersistentVolumeLabel
+    - --cloud-provider=aws
+    livenessProbe:
+      httpGet:
+        host: 127.0.0.1
+        port: 8080
+        path: /healthz
+      initialDelaySeconds: 15
+      timeoutSeconds: 15
     ports:
     - containerPort: 443
       hostPort: 443

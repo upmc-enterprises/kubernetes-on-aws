@@ -1,0 +1,471 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Kubernetes AWS Cluster
+Mappings:
+  RegionMap:
+    eu-central-1:
+      stable: ami-eb3b6198
+    eu-west-1:
+      stable: ami-e3d6ab90
+    us-east-1:
+      stable: ami-6bb93c7d
+    us-east-2:
+      stable: ami-9995b4fc
+    us-west-1:
+      stable: ami-f7df8897
+    us-west-2:
+      stable: ami-d0e54eb0
+Parameters:
+  ArtifactURL:
+    Default: https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/scripts/install-scripts
+    Description: Public location of kubernetes deployment artifacts
+    Type: String
+  ClusterName:
+    Default: kubernetes
+    Description: Name of Kubernetes cluster (Make this unique!)
+    Type: String
+  RouteTableNAT:
+    Description: Id of the route table to route to the NAT instance
+    Type: String
+  k8sSubnetCidrBlockPrivateAZ1:
+    Default: 10.0.70.0/24
+    Description: CIDR block for kubernetes subnet (AZ1)
+    Type: String
+  k8sSubnetCidrBlockPrivateAZ2:
+    Default: 10.0.71.0/24
+    Description: CIDR block for kubernetes subnet (AZ2)
+    Type: String
+  k8sSubnetCidrBlockPrivateAZ3:
+    Default: 10.0.72.0/24
+    Description: CIDR block for kubernetes subnet (AZ3)
+    Type: String
+  EC2BootVolumeSizeGB:
+    Default: '30'
+    Description: Size in GB for boot volumes
+    Type: String
+  ApplicationVPC:
+    Default: ''
+    Description: VPC for kubernetes application to be deployed into
+    Type: AWS::EC2::VPC::Id
+  AvailabilityZone1:
+    Default: us-east-1c
+    Description: First availability zone
+    Type: AWS::EC2::AvailabilityZone::Name
+  AvailabilityZone2:
+    Default: us-east-1d
+    Description: Second availability zone
+    Type: AWS::EC2::AvailabilityZone::Name
+  AvailabilityZone3:
+    Default: us-east-1e
+    Description: Third availability zone
+    Type: AWS::EC2::AvailabilityZone::Name
+  ControllerInstanceType:
+    Default: m3.medium
+    Description: EC2 instance type used for each controller instance
+    Type: String
+    AllowedValues:
+    - t2.micro
+    - t2.large
+    - m3.medium
+    - m3.large
+    - m3.xlarge
+    - m3.2xlarge
+    - m4.large
+    - m4.xlarge
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of SSH keypair to authorize on each instance
+  ReleaseChannel:
+    AllowedValues:
+    - stable
+    Default: stable
+    Description: CoreOS Linux release channel to use as instance operating system
+    Type: String
+  WorkerCount:
+    Default: '1'
+    Description: Number of worker instances to create, may be modified later
+    Type: String
+  WorkerInstanceType:
+    Default: m3.medium
+    Description: EC2 instance type used for each worker instance
+    Type: String
+    AllowedValues:
+    - t2.micro
+    - t2.large
+    - m3.medium
+    - m3.large
+    - m3.xlarge
+    - m3.2xlarge
+    - m4.large
+    - m4.xlarge
+Resources:
+  AlarmControllerRecover:
+    Properties:
+      AlarmActions:
+      - Fn::Join:
+        - ''
+        - - 'arn:aws:automate:'
+          - Ref: AWS::Region
+          - ":ec2:recover"
+      AlarmDescription: Trigger a recovery when system check fails for 5 consecutive
+        minutes.
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+      - Name: InstanceId
+        Value:
+          Ref: InstanceController
+      EvaluationPeriods: '5'
+      MetricName: StatusCheckFailed_System
+      Namespace: AWS/EC2
+      Period: '60'
+      Statistic: Minimum
+      Threshold: '0'
+    Type: AWS::CloudWatch::Alarm
+  AutoScaleWorker:
+    Properties:
+      AvailabilityZones:
+      - Ref: AvailabilityZone1
+      - Ref: AvailabilityZone2
+      - Ref: AvailabilityZone3
+      DesiredCapacity:
+        Ref: WorkerCount
+      HealthCheckGracePeriod: 600
+      HealthCheckType: EC2
+      LaunchConfigurationName:
+        Ref: LaunchConfigurationWorker
+      MaxSize:
+        Ref: WorkerCount
+      MinSize:
+        Ref: WorkerCount
+      Tags:
+      - Key: KubernetesCluster
+        PropagateAtLaunch: 'true'
+        Value:
+          Ref: ClusterName
+      - Key: Name
+        PropagateAtLaunch: 'true'
+        Value: kube-aws-worker
+      VPCZoneIdentifier:
+      - Ref: k8sSubnetA
+      - Ref: k8sSubnetB
+      - Ref: k8sSubnetC
+    Type: AWS::AutoScaling::AutoScalingGroup
+  IAMInstanceProfileController:
+    Properties:
+      Path: "/"
+      Roles:
+      - Ref: IAMRoleController
+    Type: AWS::IAM::InstanceProfile
+  IAMInstanceProfileWorker:
+    Properties:
+      Path: "/"
+      Roles:
+      - Ref: IAMRoleWorker
+    Type: AWS::IAM::InstanceProfile
+  IAMRoleController:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action:
+          - sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+        Version: '2012-10-17'
+      Path: "/"
+      Policies:
+      - PolicyDocument:
+          Statement:
+          - Action: ec2:*
+            Effect: Allow
+            Resource: "*"
+          - Action: elasticloadbalancing:*
+            Effect: Allow
+            Resource: "*"
+          Version: '2012-10-17'
+        PolicyName: root
+    Type: AWS::IAM::Role
+  IAMRoleWorker:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action:
+          - sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+        Version: '2012-10-17'
+      Path: "/"
+      Policies:
+      - PolicyDocument:
+          Statement:
+          - Action: ec2:Describe*
+            Effect: Allow
+            Resource: "*"
+          - Action: ec2:AttachVolume
+            Effect: Allow
+            Resource: "*"
+          - Action: ec2:DetachVolume
+            Effect: Allow
+            Resource: "*"
+          - Effect: Allow
+            Action:
+            - ecr:GetAuthorizationToken
+            - ecr:BatchCheckLayerAvailability
+            - ecr:GetDownloadUrlForLayer
+            - ecr:GetRepositoryPolicy
+            - ecr:DescribeRepositories
+            - ecr:ListImages
+            - ecr:BatchGetImage
+            Resource: "*"
+          Version: '2012-10-17'
+        PolicyName: root
+    Type: AWS::IAM::Role
+  InstanceController:
+    Properties:
+      AvailabilityZone:
+        Ref: AvailabilityZone1
+      IamInstanceProfile:
+        Ref: IAMInstanceProfileController
+      BlockDeviceMappings:
+      - DeviceName: "/dev/xvda"
+        Ebs:
+          VolumeSize:
+            Ref: EC2BootVolumeSizeGB
+      ImageId:
+        Fn::FindInMap:
+        - RegionMap
+        - Ref: AWS::Region
+        - Ref: ReleaseChannel
+      InstanceType:
+        Ref: ControllerInstanceType
+      KeyName:
+        Ref: KeyName
+      NetworkInterfaces:
+      - AssociatePublicIpAddress: false
+        DeleteOnTermination: true
+        DeviceIndex: '0'
+        GroupSet:
+        - Ref: SecurityGroupController
+        PrivateIpAddress: 10.0.70.50
+        SubnetId:
+          Ref: k8sSubnetA
+      Tags:
+      - Key: KubernetesCluster
+        Value:
+          Ref: ClusterName
+      - Key: Name
+        Value: kube-aws-controller
+      UserData:
+        Fn::Base64: | 
+          {"ignition":{"version":"2.0.0","config":{}},"storage":{"files":[{"filesystem":"root","path":"/etc/sysctl.d/sysctl.conf","contents":{"source":"data:,vm.max_map_count%20%3D%20262144%0A","verification":{}},"mode":644,"user":{},"group":{}},{"filesystem":"root","path":"/etc/kubernetes/manifests/kube-apiserver.yaml","contents":{"source":"https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/yaml/apiserver.yaml","verification":{}},"mode":644,"user":{},"group":{}},{"filesystem":"root","path":"/etc/kubernetes/manifests/kube-proxy.yaml","contents":{"source":"https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/yaml/kube-proxy.yaml","verification":{}},"mode":644,"user":{},"group":{}},{"filesystem":"root","path":"/etc/kubernetes/manifests/kube-controller-manager.yaml","contents":{"source":"https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/yaml/controller-manager.yaml","verification":{}},"mode":644,"user":{},"group":{}},{"filesystem":"root","path":"/etc/kubernetes/manifests/kube-scheduler.yaml","contents":{"source":"https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/yaml/scheduler.yaml","verification":{}},"mode":644,"user":{},"group":{}},{"filesystem":"root","path":"/etc/kubernetes/cni/net.d/10-flannel.conf","contents":{"source":"data:,%7B%0A%20%20%22name%22%3A%20%22podnet%22%2C%0A%20%20%22type%22%3A%20%22flannel%22%2C%0A%20%20%22delegate%22%3A%20%7B%0A%20%20%20%20%22isDefaultGateway%22%3A%20true%0A%20%20%7D%0A%7D%0A","verification":{}},"mode":644,"user":{},"group":{}},{"filesystem":"root","path":"/etc/kubernetes/ssl/ca.pem","contents":{"source":"data:,-----BEGIN%20CERTIFICATE-----%0AMIIDGjCCAgKgAwIBAgIJAJ9qEsLLV83PMA0GCSqGSIb3DQEBBQUAMBIxEDAOBgNV%0ABAMTB2t1YmUtY2EwHhcNMTcwNzMxMTgzOTU0WhcNNDQxMjE2MTgzOTU0WjASMRAw%0ADgYDVQQDEwdrdWJlLWNhMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA%0Aqjq0ZoCHwERNz04P5yohyYVSNL9F%2FoOB%2Bdzn7rU4VGGP8zIcESHDRKUi61D4Sayw%0AKpobZKiu7qEqV%2FoRwY%2FCwp47z%2BzvArw9oaMEr%2Fsl%2FS0bkuRUVIwj76WyokQOYWN3%0A5znxWun%2BkOVw1fnCqbzq4oFLdhdwqL8YP96T3MwMKe%2BXccFFHZQrzSqWLYrahkGe%0Ak%2BCMbm5zWespHDnPRWOXTYqQR6l7mWLTreAWrE3yanZ80yTkdBHwJ7Fi2ibG88fG%0A2KwvWZnwFMvTgJM9SJ4mWEztIkygDyxRPjvBFal65MnxRQJnjkzi2GcefcXTX1TM%0ARefJ%2BKmtEMmx1mKXdszNLwIDAQABo3MwcTAdBgNVHQ4EFgQUu6RK2Do%2B7spfaAm7%0AeT4ZQsD1EDgwQgYDVR0jBDswOYAUu6RK2Do%2B7spfaAm7eT4ZQsD1EDihFqQUMBIx%0AEDAOBgNVBAMTB2t1YmUtY2GCCQCfahLCy1fNzzAMBgNVHRMEBTADAQH%2FMA0GCSqG%0ASIb3DQEBBQUAA4IBAQAxEyEsrwT5IDTBBgxaMPOwEPWJqB0KE10m9L6Z6IP7Q%2FEe%0AKaeaaZX8rHOIUGlF1fUdHfYxFw1NV4J5fORum7yXRB3CBftsplzyOW6paeNt5Gal%0AVHz9cxgNygWHOfbTKFJVa9HEh%2BpYbp0Ko07Cbj8Ev7bH6aQjU04IfaZEMhI1Y%2FWQ%0AAT7m7R27ttIWX2RueVRdBaGNMUweBWg5Smnof%2BxiuQIoJNzzqFVRUOurvTAJw3rd%0AFNiDDb8ozm04sYmNN4bgbQyyYNrO30BsNJpA7p9qr92bV3zU4fGC9mndQI1n2u7O%0AlLGCuXbyMuhTp%2FupUcJTjxA9vXsfzlZF5OW%2BWcsR%0A-----END%20CERTIFICATE-----%20%0A","verification":{}},"mode":644,"user":{},"group":{}},{"filesystem":"root","path":"/etc/kubernetes/ssl/apiserver.pem","contents":{"source":"data:,-----BEGIN%20CERTIFICATE-----%0AMIIDPzCCAiegAwIBAgIJAJxrbQ79ntkKMA0GCSqGSIb3DQEBBQUAMBIxEDAOBgNV%0ABAMTB2t1YmUtY2EwHhcNMTcwNzMxMTgzOTU3WhcNMTgwNzMxMTgzOTU3WjAZMRcw%0AFQYDVQQDDA5rdWJlLWFwaXNlcnZlcjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCC%0AAQoCggEBANDgJn7vsIEuYOmmkZCOQ9VExgjJVOIHIikelkhxPk9ixz6tLkiKAU02%0AlfO9Bp9TrtvLaK3Cryg2AkJANEG41S8p64K22hIbnfPEkcqTHYyJYZ%2Bzfs%2FR%2FAxm%0AeOnZd2qTZ7TZbVpCjaUnEbY7bJxWqAfS23jFfAlGmMRwzcyDxg6xVmDWNFd%2FSxjb%0AI94VQBeaHoKjHVAZfjSxvY9j%2FkpysTIbEs3jV2YzF13YrJhluUxX88kb3o5O609X%0AAfY4RN3kXubX3fASMjzFqeE6Q6jyqo%2BwlJzrTCzAfxHQi5eNom35ANY6WjNTTf0W%0Ax4cJZD5NujuYZjS6dKGMmoh6bnuBdnMCAwEAAaOBkDCBjTAJBgNVHRMEAjAAMAsG%0AA1UdDwQEAwIF4DBzBgNVHREEbDBqggprdWJlcm5ldGVzghJrdWJlcm5ldGVzLmRl%0AZmF1bHSCFmt1YmVybmV0ZXMuZGVmYXVsdC5zdmOCJGt1YmVybmV0ZXMuZGVmYXVs%0AdC5zdmMuY2x1c3Rlci5sb2NhbIcECgMAAYcECgBGMjANBgkqhkiG9w0BAQUFAAOC%0AAQEAdxqlgPoymDQTM3vX12u3kuTGAQvPMNzWkBBNAjRa2D%2BHJSMk2tYWkXuDm%2FOU%0AghZPlfvdDe4UkdtrZ82zcU8CZIfUEjxm1aZUSCBHXQh%2BTkdhhEg4VXyRN%2F8meR5z%0Ac%2Fo1LfPEPA8z9QcJYVDyZUBObJUeITtjzQEAOikcak2QXaphOFM7EEDkwZ3pDeQ6%0ABB7iAtq1GPGAobEXWwWTB1x58vPYmIbXjcSupHyzl7dhuYdo7GR9xRicfnilwuYk%0AGVOvOw8oquJa%2FUp7ycZR9K9B4pTIVpzl3WBDRJ1nhMVn3R6IN3F3GNtw6q%2BNvQe4%0AYcvDOQbJzryoVhhrGPEykyW7ZA%3D%3D%0A-----END%20CERTIFICATE-----%0A","verification":{}},"mode":644,"user":{},"group":{}},{"filesystem":"root","path":"/etc/kubernetes/ssl/apiserver-key.pem","contents":{"source":"data:,-----BEGIN%20RSA%20PRIVATE%20KEY-----%0AMIIEpQIBAAKCAQEA0OAmfu%2BwgS5g6aaRkI5D1UTGCMlU4gciKR6WSHE%2BT2LHPq0u%0ASIoBTTaV870Gn1Ou28torcKvKDYCQkA0QbjVLynrgrbaEhud88SRypMdjIlhn7N%2B%0Az9H8DGZ46dl3apNntNltWkKNpScRtjtsnFaoB9LbeMV8CUaYxHDNzIPGDrFWYNY0%0AV39LGNsj3hVAF5oegqMdUBl%2BNLG9j2P%2BSnKxMhsSzeNXZjMXXdismGW5TFfzyRve%0Ajk7rT1cB9jhE3eRe5tfd8BIyPMWp4TpDqPKqj7CUnOtMLMB%2FEdCLl42ibfkA1jpa%0AM1NN%2FRbHhwlkPk26O5hmNLp0oYyaiHpue4F2cwIDAQABAoIBAQDOzC2w3TQeIcHX%0Aco%2BJ1CA6pTV%2F%2B3zrr25V0a%2Bul1e%2Blyh22FULgn7ZaGK8B3joA50KhW%2FlIOvz3s0L%0AtK9IJmwCnvlJ2Ck9ZlRSxVometL1kgqyZ670qIxn5oht1l2RidFSTzYh9%2BRvD6hM%0AiLb2biE8Zbne737nXBrh2mEWy5wqbAOwpXUokJqfVfmVQB1M0b%2Bm2lbQMpow9J7%2F%0AbWn9ZZMWnklGlrYojQBdCOynGy1MCPGUZ9EjviWl3%2FgvIBoyFCr2KLKY5a46XdJf%0A0j3JDeNWt6rAmpQHQjyxRKzueZWY1X8d%2F40FCHb8Ami%2B%2B6CAgJETfZMm%2Bm82EfHj%0AKja1aUJpAoGBAPonphhtpOouvcer9imZ1OpVUmNnqQpkTGiWr%2FBlYeLcVKSPozHm%0A8VUNHkSf8JMarOVnxnDWVyUxKUP9eRS5pFFl5jOH6qIyQsJD60Q5%2Fs%2FdhtbQ4idS%0At7adoXMKbZszflcvSrhlZ1TccxclmHtxyeicL4NBZ8I4ujYXCj3PlCFvAoGBANXB%0AlM4tJb5g2bQ6w12x57uC3Uis9MXpnKSsVW%2FeZko7pp92ik1TRsIdLghRLvJEaHhw%0AsRZB%2F35brIFER%2FuvrT8j1z94oCueFyTXXQN36vq8B9QWcwuFyUcCgaZIZLrc3YMS%0AVRG8%2B2lel9d%2FhgkJXX2ToEUleqfVbGgjunm0BPE9AoGBAI8TlmBqdeSrj0hhBo6M%0Auca9vj200G5tJ3a6mS66Dd6ffpoQvZqRKH8o3aMKh6LbowAi9tEbBwTytVN56oL8%0AGwujaKMYng7fCGfsSOfg8%2BkYH0NGfdNX8FO2nN0bnc0jCqP7HJWTCiLzY7BdhHU2%0Ag%2FFTQ6mjAyGHKJo%2FW1A3JdZpAoGAGQAQGGEdZfvL2pF44g95q%2ButV9%2BqrS8afAQP%0A5gqb6hi57zKdEFgqEW%2F6P0zHcdxgX53GiHTlnfC451GGHcC5QYY%2BmZTRHujZihyK%0AK2quF%2B8%2F9yU9BV77YIvBgCI9bcGBQuA1BOMWgIdouPKYSZxHy%2FUlLJEqnFCQ4kkz%0AeSJ95X0CgYEAn9A%2FtbXPD0Ympb0KODoVp%2B3YMlXg2z8uc7WMgnhhdW8QgxaTbxo2%0AQCI9u8MZOCRjEZ1iQ9O6a1%2FvYcshTg1%2FQAt5xei6feOAU8dLKIkZCumwF60EkjeJ%0AGiYFobOB58i7RTw5RxHfGWRDrmptguuDu8DMXeh3kiXyotDJ72aMF5Q%3D%0A-----END%20RSA%20PRIVATE%20KEY-----%20","verification":{}},"mode":644,"user":{},"group":{}}]},"systemd":{"units":[{"name":"etcd-member.service","enable":true,"dropins":[{"name":"20-clct-etcd-member.conf","contents":"[Service]\nEnvironment=\"ETCD_IMAGE_TAG=v3.2.4\"\nExecStart=\nExecStart=/usr/lib/coreos/etcd-wrapper $ETCD_OPTS \\\n  --name=\"10.0.70.50\" \\\n  --listen-peer-urls=\"http://10.0.70.50:2380\" \\\n  --listen-client-urls=\"http://0.0.0.0:2379\" \\\n  --initial-advertise-peer-urls=\"http://10.0.70.50:2380\" \\\n  --initial-cluster=\"10.0.70.50=http://10.0.70.50:2380\" \\\n  --advertise-client-urls=\"http://10.0.70.50:2379\""}]},{"name":"flanneld.service","enable":true,"dropins":[{"name":"20-clct-flannel.conf","contents":"[Service]\nEnvironment=\"FLANNEL_IMAGE_TAG=v0.7.1\"\nExecStart=\nExecStart=/usr/lib/coreos/flannel-wrapper $FLANNEL_OPTS \\\n  --etcd-prefix=\"/coreos.com/network\""}]},{"name":"rpcbind.service","enable":true},{"name":"flanneld.service","dropins":[{"name":"50-network-config.conf","contents":"[Service]\nExecStartPre=/usr/bin/curl -X PUT -d \"value={\\\"Network\\\":\\\"10.2.0.0/16\\\"}\" \"http://127.0.0.1:2379/v2/keys/coreos.com/network/config?prevExist=false\"\n"}]},{"name":"docker.service","dropins":[{"name":"40-flannel.conf","contents":"[Unit]\nRequires=flanneld.service\nAfter=flanneld.service\n[Service]\nRestart=always\n"}]},{"name":"kubelet.service","enable":true,"contents":"[Service]\nEnvironment=KUBELET_IMAGE_TAG=v1.7.2_coreos.0\nEnvironment=\"RKT_RUN_ARGS=--uuid-file-save=/var/run/kubelet-pod.uuid \\\n  --volume var-log,kind=host,source=/var/log \\\n  --mount volume=var-log,target=/var/log \\\n  --volume dns,kind=host,source=/etc/resolv.conf \\\n  --mount volume=dns,target=/etc/resolv.conf\"\nExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests\nExecStartPre=/usr/bin/mkdir -p /var/log/containers\nExecStartPre=-/usr/bin/rkt rm --uuid-file=/var/run/kubelet-pod.uuid\nExecStart=/usr/lib/coreos/kubelet-wrapper \\\n  --api-servers=http://127.0.0.1:8080 \\\n  --register-schedulable=false \\\n  --register-node=false \\\n  --cni-conf-dir=/etc/kubernetes/cni/net.d \\\n  --container-runtime=docker \\\n  --allow-privileged=true \\\n  --pod-manifest-path=/etc/kubernetes/manifests \\\n  --hostname-override=ip-10-0-70-50.ec2.internal \\\n  --cluster_dns=10.3.0.10 \\\n  --cluster_domain=cluster.local\nExecStop=-/usr/bin/rkt stop --uuid-file=/var/run/kubelet-pod.uuid\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\n"}]},"networkd":{},"passwd":{}}
+    Type: AWS::EC2::Instance
+  LaunchConfigurationWorker:
+    Properties:
+      BlockDeviceMappings:
+      - DeviceName: "/dev/xvda"
+        Ebs:
+          VolumeSize:
+            Ref: EC2BootVolumeSizeGB
+      IamInstanceProfile:
+        Ref: IAMInstanceProfileWorker
+      ImageId:
+        Fn::FindInMap:
+        - RegionMap
+        - Ref: AWS::Region
+        - Ref: ReleaseChannel
+      InstanceType:
+        Ref: WorkerInstanceType
+      KeyName:
+        Ref: KeyName
+      SecurityGroups:
+      - Ref: SecurityGroupWorker
+      UserData:
+        Fn::Base64: | 
+          {"ignition":{"version":"2.0.0","config":{}},"storage":{"files":[{"filesystem":"root","path":"/etc/sysctl.d/sysctl.conf","contents":{"source":"data:,vm.max_map_count%20%3D%20262144%0A","verification":{}},"mode":644,"user":{},"group":{}},{"filesystem":"root","path":"/etc/kubernetes/manifests/kube-proxy.yaml","contents":{"source":"https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/yaml/kube-proxy.yaml","verification":{}},"mode":644,"user":{},"group":{}},{"filesystem":"root","path":"/etc/kubernetes/worker-kubeconfig.yaml","contents":{"source":"data:,apiVersion%3A%20v1%0Akind%3A%20Config%0Aclusters%3A%0A-%20name%3A%20local%0A%20%20cluster%3A%0A%20%20%20%20certificate-authority%3A%20%2Fetc%2Fkubernetes%2Fssl%2Fca.pem%0Ausers%3A%0A-%20name%3A%20kubelet%0A%20%20user%3A%0A%20%20%20%20client-certificate%3A%20%2Fetc%2Fkubernetes%2Fssl%2Fworker.pem%0A%20%20%20%20client-key%3A%20%2Fetc%2Fkubernetes%2Fssl%2Fworker-key.pem%0Acontexts%3A%0A-%20context%3A%0A%20%20%20%20cluster%3A%20local%0A%20%20%20%20user%3A%20kubelet%0A%20%20name%3A%20kubelet-context%0Acurrent-context%3A%20kubelet-context%0A","verification":{}},"mode":644,"user":{},"group":{}},{"filesystem":"root","path":"/etc/kubernetes/cni/net.d/10-flannel.conf","contents":{"source":"data:,%7B%0A%20%20%22name%22%3A%20%22podnet%22%2C%0A%20%20%22type%22%3A%20%22flannel%22%2C%0A%20%20%22delegate%22%3A%20%7B%0A%20%20%20%20%22isDefaultGateway%22%3A%20true%0A%20%20%7D%0A%7D%0A","verification":{}},"mode":644,"user":{},"group":{}},{"filesystem":"root","path":"/etc/kubernetes/ssl/ca.pem","contents":{"source":"data:,-----BEGIN%20CERTIFICATE-----%0AMIIDGjCCAgKgAwIBAgIJAJ9qEsLLV83PMA0GCSqGSIb3DQEBBQUAMBIxEDAOBgNV%0ABAMTB2t1YmUtY2EwHhcNMTcwNzMxMTgzOTU0WhcNNDQxMjE2MTgzOTU0WjASMRAw%0ADgYDVQQDEwdrdWJlLWNhMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA%0Aqjq0ZoCHwERNz04P5yohyYVSNL9F%2FoOB%2Bdzn7rU4VGGP8zIcESHDRKUi61D4Sayw%0AKpobZKiu7qEqV%2FoRwY%2FCwp47z%2BzvArw9oaMEr%2Fsl%2FS0bkuRUVIwj76WyokQOYWN3%0A5znxWun%2BkOVw1fnCqbzq4oFLdhdwqL8YP96T3MwMKe%2BXccFFHZQrzSqWLYrahkGe%0Ak%2BCMbm5zWespHDnPRWOXTYqQR6l7mWLTreAWrE3yanZ80yTkdBHwJ7Fi2ibG88fG%0A2KwvWZnwFMvTgJM9SJ4mWEztIkygDyxRPjvBFal65MnxRQJnjkzi2GcefcXTX1TM%0ARefJ%2BKmtEMmx1mKXdszNLwIDAQABo3MwcTAdBgNVHQ4EFgQUu6RK2Do%2B7spfaAm7%0AeT4ZQsD1EDgwQgYDVR0jBDswOYAUu6RK2Do%2B7spfaAm7eT4ZQsD1EDihFqQUMBIx%0AEDAOBgNVBAMTB2t1YmUtY2GCCQCfahLCy1fNzzAMBgNVHRMEBTADAQH%2FMA0GCSqG%0ASIb3DQEBBQUAA4IBAQAxEyEsrwT5IDTBBgxaMPOwEPWJqB0KE10m9L6Z6IP7Q%2FEe%0AKaeaaZX8rHOIUGlF1fUdHfYxFw1NV4J5fORum7yXRB3CBftsplzyOW6paeNt5Gal%0AVHz9cxgNygWHOfbTKFJVa9HEh%2BpYbp0Ko07Cbj8Ev7bH6aQjU04IfaZEMhI1Y%2FWQ%0AAT7m7R27ttIWX2RueVRdBaGNMUweBWg5Smnof%2BxiuQIoJNzzqFVRUOurvTAJw3rd%0AFNiDDb8ozm04sYmNN4bgbQyyYNrO30BsNJpA7p9qr92bV3zU4fGC9mndQI1n2u7O%0AlLGCuXbyMuhTp%2FupUcJTjxA9vXsfzlZF5OW%2BWcsR%0A-----END%20CERTIFICATE-----%20%0A","verification":{}},"mode":644,"user":{},"group":{}},{"filesystem":"root","path":"/etc/kubernetes/ssl/worker.pem","contents":{"source":"data:,-----BEGIN%20CERTIFICATE-----%0AMIIDBjCCAe6gAwIBAgIJAJxrbQ79ntkLMA0GCSqGSIb3DQEBBQUAMBIxEDAOBgNV%0ABAMTB2t1YmUtY2EwHhcNMTcwNzMxMTg0MDAyWhcNMTgwNzMxMTg0MDAyWjAmMSQw%0AIgYDVQQDDBt3b3JrZXIuazhzLmNsdXN0ZXIuaW50ZXJuYWwwggEiMA0GCSqGSIb3%0ADQEBAQUAA4IBDwAwggEKAoIBAQDb9goN37G%2FE3qkO9JaB%2FPzzWphKi%2BmrlCHU5Qm%0AEbVgqBbEFBUH1rktVumbebYlJKr3DBrX8I88kHeabhXue7JCMVIhSkbjNXjRDynv%0AtsG7sE9RqsdNUfcDBHnMJDIPMHEniL4X3uCQIaGTZzMcvpYNNPaozXaAB6kPKyAL%0A1efsq83K5F99pFO9y1pD04XePL8I523iz4b5jflA91gKsFWiyBOUz7V5qT5Y7lCo%0AIbsm6GiidNLwU9ng1T8ah3hIvy2mHEVFHw0sFXM1iHk5J0r43LvtHYCYjc73Fuv%2F%0A%2FQsq82iZzesUUYgRsCKMgcxYgS9DtAIGqn5NmH3xNKduWo4BAgMBAAGjSzBJMAkG%0AA1UdEwQCMAAwCwYDVR0PBAQDAgXgMC8GA1UdEQQoMCaCFCouKi5jbHVzdGVyLmlu%0AdGVybmFsgg4qLmVjMi5pbnRlcm5hbDANBgkqhkiG9w0BAQUFAAOCAQEAXcb9UumD%0Al34O06cglXlgKymhYO1VQqr437Vp24lZbCE5z97t528yhHGegaleMo2mRfPdvtJl%0A35cW%2BD1o9jbhChY3JJtYU4ABoKNEwA0oNd5Xccy7G%2BXDyhxx4rjdsVXX6QrG%2FgMX%0AcZqXYGyvYbYtqjSzwAHFYanJZDmBhfDjwfayYzgwlkx8k%2BiPpzJ3UigI2Rsc8qMy%0ADd%2BSg1zTcjPW1THvSXoVySAkQFIGHEPnLCVO86aZzmcOsji1FFOscfVIxf6pz8Fp%0AVg4Z%2BuBga9Szw%2FKmYrn7JtdCJmlpVOtGnGymV%2FlzF9G7TPLCT8d7A2w%2FSyAnQGAZ%0Axx6ufGg2ihia1g%3D%3D%0A-----END%20CERTIFICATE-----%0A","verification":{}},"mode":644,"user":{},"group":{}},{"filesystem":"root","path":"/etc/kubernetes/ssl/worker-key.pem","contents":{"source":"data:,-----BEGIN%20RSA%20PRIVATE%20KEY-----%0AMIIEowIBAAKCAQEA2%2FYKDd%2BxvxN6pDvSWgfz881qYSovpq5Qh1OUJhG1YKgWxBQV%0AB9a5LVbpm3m2JSSq9wwa1%2FCPPJB3mm4V7nuyQjFSIUpG4zV40Q8p77bBu7BPUarH%0ATVH3AwR5zCQyDzBxJ4i%2BF97gkCGhk2czHL6WDTT2qM12gAepDysgC9Xn7KvNyuRf%0AfaRTvctaQ9OF3jy%2FCOdt4s%2BG%2BY35QPdYCrBVosgTlM%2B1eak%2BWO5QqCG7JuhoonTS%0A8FPZ4NU%2FGod4SL8tphxFRR8NLBVzNYh5OSdK%2BNy77R2AmI3O9xbr%2F%2F0LKvNomc3r%0AFFGIEbAijIHMWIEvQ7QCBqp%2BTZh98TSnblqOAQIDAQABAoIBAQDAZVkuAXgL1hH0%0ADY9UyJgNrKNcEfZUKSyu8eAn3F12ChC%2FuYEbtimLCvaS08cKfiQ8qw3fy76%2BDu9O%0A2PO%2BAdxOIa3hCIMwwdjHpCfeUVDrxq%2FakzJ44zTYItYWRaKzvn97QRRk9MIf0Arw%0AT9hZUCsXqjgGNpFsM0cgyWviblvKmmxphsJUHBbfWKuXDj9vuIIjULawu8RL98Mq%0AONChuFQc358AJi3fqshXOAqyfGjqz%2Bys9muIfnRpUXx2wSjOrh2QW073X19X2y9u%0AAnrhhydOQSXYdFo9bAnNOsEwTESxUr%2Bfgrts6yc2RXU03WZgFHWV4ig047XUguGb%0A%2BXAfQ85BAoGBAPlMWyoYi3rWyIi%2Fjn2qTXVjAVkx2cTh9gWuNGHsErf%2BSo3wIbfD%0AC8fdWX9CM%2BlzzLR2KK8ItLhHawN5zrrOn%2B41BE9tX229U4hOEKTfleGvxs5mvM3p%0AmWcXanAPPnAfWDtga81L2OylvO8LXEtaGtJJ0VlU1QpEEGvuc5vES94dAoGBAOHf%0AybIs9aSi%2FUSFtViGkihZ%2FAs3mmZ42%2F82GrYfJbVpz3GsTVLFPgTPJPwUkLfIil6j%0ApYtSGKbX21qMWaMzY05h41HqnqKGxb5Y%2BzXradKDKE8NQRXspQY%2Bpp05XtqBvThT%0AOJa4PVqNrE3FaJ62OBuDphxUGuTX6%2FiByOevLzo1AoGAQpCjyvKw04TkGLdlOaKu%0AegiMhJ9t8UcQZOXl8LuTJ%2FPLPmj%2B5805qQ0uZ29q4wvbfdgK9umRL59KMKxmibTA%0AOV%2BInhirIWcrFbsacJuOrqs7n0MJaMXWAxPahL9dQZzs9zXAsxlse4upjf5vj2Mo%0AxDuXnY2sMMiJxffugIoCY%2FUCgYAOqjfvMIoWUVq%2BOywl%2Fj65DfaWR9rnckteS4X6%0AcxVArQkB6Vzv1cyMBWLyVud6dzO8p0VVQVRGaNdeDqS3Otvkt%2BhJZkE8biGilSZi%0APtGVEFzqnQKvyLiCKkkpBhOJfkjpwkV3S6j4GyCnv%2Fxl6ZDFAIwlZLSGTRqN%2FOct%0AW6tmTQKBgEcsFFyWyqzJPxhdjniesSSzKzejklMkFTnXGdq%2BtePAIlcIr83g3gFx%0ANwQw4v%2BcmOmzxzIpFpFGOPgcWF9SkSJYkOm87W3m%2BNNMoBA5W%2B415d9Wb3HQ64Od%0AJwBPuuvYIQv4%2BbSkKjX%2FSBW5Xa5kXrYdXBdiG6kvjs45t23qJu9c%0A-----END%20RSA%20PRIVATE%20KEY-----","verification":{}},"mode":644,"user":{},"group":{}}]},"systemd":{"units":[{"name":"flanneld.service","enable":true,"dropins":[{"name":"20-clct-flannel.conf","contents":"[Service]\nEnvironment=\"FLANNEL_IMAGE_TAG=v0.7.1\"\nExecStart=\nExecStart=/usr/lib/coreos/flannel-wrapper $FLANNEL_OPTS \\\n  --etcd-endpoints=\"http://10.0.70.50:2379\""}]},{"name":"rpcbind.service","enable":true},{"name":"docker.service","dropins":[{"name":"40-flannel.conf","contents":"[Unit]\nRequires=flanneld.service\nAfter=flanneld.service\n[Service]\nRestart=always\n"}]},{"name":"kubelet.service","enable":true,"contents":"[Service]\nEnvironment=KUBELET_IMAGE_TAG=v1.7.2_coreos.0\nEnvironment=\"RKT_RUN_ARGS=--uuid-file-save=/var/run/kubelet-pod.uuid \\\n  --volume dns,kind=host,source=/etc/resolv.conf \\\n  --mount volume=dns,target=/etc/resolv.conf \\\n  --volume var-log,kind=host,source=/var/log \\\n  --mount volume=var-log,target=/var/log\"\nExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests\nExecStartPre=/usr/bin/mkdir -p /var/log/containers\nExecStartPre=-/usr/bin/rkt rm --uuid-file=/var/run/kubelet-pod.uuid\nExecStart=/usr/lib/coreos/kubelet-wrapper \\\n  --api-servers=https://10.0.70.50 \\\n  --container-runtime=docker \\\n  --register-node=true \\\n  --allow-privileged=true \\\n  --pod-manifest-path=/etc/kubernetes/manifests \\\n  --cluster_dns=10.3.0.10 \\\n  --cluster_domain=cluster.local \\\n  --kubeconfig=/etc/kubernetes/worker-kubeconfig.yaml \\\n  --tls-cert-file=/etc/kubernetes/ssl/worker.pem \\\n  --tls-private-key-file=/etc/kubernetes/ssl/worker-key.pem \\\n  --client-ca-file=/etc/kubernetes/ssl/ca.pem \\\n  --cloud-provider=aws \nExecStop=-/usr/bin/rkt stop --uuid-file=/var/run/kubelet-pod.uuid\nRestart=always\nRestartSec=10\n\n[Install]\nWantedBy=multi-user.target\n"}]},"networkd":{},"passwd":{}}
+    Type: AWS::AutoScaling::LaunchConfiguration
+  SecurityGroupELB:
+    Properties:
+      GroupDescription:
+        Ref: AWS::StackName
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: 443
+        IpProtocol: tcp
+        ToPort: 443
+      Tags:
+      - Key: KubernetesCluster
+        Value:
+          Ref: ClusterName
+      VpcId:
+        Ref: ApplicationVPC
+    Type: AWS::EC2::SecurityGroup
+  SecurityGroupController:
+    Properties:
+      GroupDescription:
+        Ref: AWS::StackName
+      SecurityGroupEgress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: 0
+        IpProtocol: tcp
+        ToPort: 65535
+      - CidrIp: 0.0.0.0/0
+        FromPort: 0
+        IpProtocol: udp
+        ToPort: 65535
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: 22
+        IpProtocol: tcp
+        ToPort: 22
+      - CidrIp: 0.0.0.0/0
+        FromPort: 443
+        IpProtocol: tcp
+        ToPort: 443
+      - CidrIp: 0.0.0.0/0
+        FromPort: 8080
+        IpProtocol: tcp
+        ToPort: 8080
+      Tags:
+      - Key: KubernetesCluster
+        Value:
+          Ref: ClusterName
+      VpcId:
+        Ref: ApplicationVPC
+    Type: AWS::EC2::SecurityGroup
+  SecurityGroupControllerIngressFromWorkerToEtcd:
+    Properties:
+      FromPort: 2379
+      GroupId:
+        Ref: SecurityGroupController
+      IpProtocol: tcp
+      SourceSecurityGroupId:
+        Ref: SecurityGroupWorker
+      ToPort: 2379
+    Type: AWS::EC2::SecurityGroupIngress
+  SecurityGroupWorker:
+    Properties:
+      GroupDescription:
+        Ref: AWS::StackName
+      SecurityGroupEgress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: 0
+        IpProtocol: tcp
+        ToPort: 65535
+      - CidrIp: 0.0.0.0/0
+        FromPort: 0
+        IpProtocol: udp
+        ToPort: 65535
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: 22
+        IpProtocol: tcp
+        ToPort: 22
+      Tags:
+      - Key: KubernetesCluster
+        Value:
+          Ref: ClusterName
+      VpcId:
+        Ref: ApplicationVPC
+    Type: AWS::EC2::SecurityGroup
+  SecurityGroupWorkerIngressFromControllerToFlannel:
+    Properties:
+      FromPort: 8285
+      GroupId:
+        Ref: SecurityGroupWorker
+      IpProtocol: udp
+      SourceSecurityGroupId:
+        Ref: SecurityGroupController
+      ToPort: 8285
+    Type: AWS::EC2::SecurityGroupIngress
+  SecurityGroupWorkerIngressFromControllerToKubelet:
+    Properties:
+      FromPort: 10250
+      GroupId:
+        Ref: SecurityGroupWorker
+      IpProtocol: tcp
+      SourceSecurityGroupId:
+        Ref: SecurityGroupController
+      ToPort: 10250
+    Type: AWS::EC2::SecurityGroupIngress
+  SecurityGroupWorkerIngressFromWorkerToFlannel:
+    Properties:
+      FromPort: 8285
+      GroupId:
+        Ref: SecurityGroupWorker
+      IpProtocol: udp
+      SourceSecurityGroupId:
+        Ref: SecurityGroupWorker
+      ToPort: 8285
+    Type: AWS::EC2::SecurityGroupIngress
+  k8sSubnetA:
+    Properties:
+      AvailabilityZone:
+        Ref: AvailabilityZone1
+      CidrBlock:
+        Ref: k8sSubnetCidrBlockPrivateAZ1
+      MapPublicIpOnLaunch: false
+      Tags:
+      - Key: Name
+        Value: k8sSubnetA
+      - Key: KubernetesCluster
+        Value:
+          Ref: ClusterName
+      VpcId:
+        Ref: ApplicationVPC
+    Type: AWS::EC2::Subnet
+  k8sSubnetB:
+    Properties:
+      AvailabilityZone:
+        Ref: AvailabilityZone2
+      CidrBlock:
+        Ref: k8sSubnetCidrBlockPrivateAZ2
+      MapPublicIpOnLaunch: false
+      Tags:
+      - Key: Name
+        Value: k8sSubnetB
+      - Key: KubernetesCluster
+        Value:
+          Ref: ClusterName
+      VpcId:
+        Ref: ApplicationVPC
+    Type: AWS::EC2::Subnet
+  k8sSubnetC:
+    Properties:
+      AvailabilityZone:
+        Ref: AvailabilityZone3
+      CidrBlock:
+        Ref: k8sSubnetCidrBlockPrivateAZ3
+      MapPublicIpOnLaunch: false
+      Tags:
+      - Key: Name
+        Value: k8sSubnetC
+      - Key: KubernetesCluster
+        Value:
+          Ref: ClusterName
+      VpcId:
+        Ref: ApplicationVPC
+    Type: AWS::EC2::Subnet
+  k8sSubnetRouteTableAssociationA:
+    Properties:
+      RouteTableId:
+        Ref: RouteTableNAT
+      SubnetId:
+        Ref: k8sSubnetA
+    Type: AWS::EC2::SubnetRouteTableAssociation
+  k8sSubnetRouteTableAssociationB:
+    Properties:
+      RouteTableId:
+        Ref: RouteTableNAT
+      SubnetId:
+        Ref: k8sSubnetB
+    Type: AWS::EC2::SubnetRouteTableAssociation
+  k8sSubnetRouteTableAssociationC:
+    Properties:
+      RouteTableId:
+        Ref: RouteTableNAT
+      SubnetId:
+        Ref: k8sSubnetC
+    Type: AWS::EC2::SubnetRouteTableAssociation
