@@ -7,29 +7,10 @@ etcd:
   listen_peer_urls:            "http://10.0.70.50:2380"
   initial_cluster:             "10.0.70.50=http://10.0.70.50:2380"
 
-flannel:
-  version:     "0.7.1"
-  etcd_prefix: "/coreos.com/network"
-
 systemd:
   units:
     - name: "rpcbind.service"
       enable: true
-    - name: flanneld.service
-      dropins:
-        - name: 50-network-config.conf
-          contents: |
-            [Service]
-            ExecStartPre=/usr/bin/curl -X PUT -d "value={\"Network\":\"10.2.0.0/16\"}" "http://127.0.0.1:2379/v2/keys/coreos.com/network/config?prevExist=false"
-    - name: "docker.service"
-      dropins:
-        - name: "40-flannel.conf"
-          contents: |
-            [Unit]
-            Requires=flanneld.service
-            After=flanneld.service
-            [Service]
-            Restart=always
     - name: "kubelet.service"
       enable: true
       contents: |
@@ -93,18 +74,12 @@ storage:
       contents:
         remote: 
           url: https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/yaml/scheduler.yaml
-    - path: "/etc/kubernetes/cni/net.d/10-flannel.conf"
+    - path: "/etc/kubernetes/bin/kubectl"
       filesystem: "root"
-      mode: 644
+      mode: 755
       contents:
-        inline: |
-          {
-            "name": "podnet",
-            "type": "flannel",
-            "delegate": {
-              "isDefaultGateway": true
-            }
-          }
+        remote: 
+          url: https://storage.googleapis.com/kubernetes-release/release/v1.7.2/bin/linux/amd64/kubectl
     - path: "/etc/kubernetes/ssl/ca.pem"
       filesystem: "root"
       mode: 644
@@ -186,3 +161,6 @@ storage:
           QCI9u8MZOCRjEZ1iQ9O6a1/vYcshTg1/QAt5xei6feOAU8dLKIkZCumwF60EkjeJ
           GiYFobOB58i7RTw5RxHfGWRDrmptguuDu8DMXeh3kiXyotDJ72aMF5Q=
           -----END RSA PRIVATE KEY----- 
+
+locksmith:
+  reboot_strategy: "off"

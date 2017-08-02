@@ -71,6 +71,8 @@ Use the following command to create the stack without needing to use the AWS Web
 ### Create Cluster Addons
 
 ```
+$ kubectl create -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+$ kubectl create -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel-rbac.yml
 $ kubectl create -f https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/yaml/cluster/kube-dns-rc.yml
 $ kubectl create -f https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/yaml/cluster/kube-dns-svc.yml
 ```
