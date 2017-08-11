@@ -17,6 +17,7 @@ spec:
     - --root-ca-file=/etc/kubernetes/ssl/ca.pem
     - --cloud-provider=aws
     - --cluster-cidr=10.244.0.0/16
+    - --allocate-node-cidrs=true
     resources:
       requests:
         cpu: 200m

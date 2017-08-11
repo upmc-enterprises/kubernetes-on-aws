@@ -27,8 +27,9 @@ systemd:
         ExecStart=/usr/lib/coreos/kubelet-wrapper \
           --api-servers=http://127.0.0.1:8080 \
           --register-schedulable=false \
-          --register-node=false \
           --cni-conf-dir=/etc/kubernetes/cni/net.d \
+          --network-plugin=cni \
+          --cni-bin-dir=/opt/cni/bin \
           --container-runtime=docker \
           --allow-privileged=true \
           --pod-manifest-path=/etc/kubernetes/manifests \
