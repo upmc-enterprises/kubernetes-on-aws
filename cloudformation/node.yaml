@@ -11,21 +11,23 @@ systemd:
           --volume dns,kind=host,source=/etc/resolv.conf \
           --mount volume=dns,target=/etc/resolv.conf \
           --volume var-log,kind=host,source=/var/log \
-          --mount volume=var-log,target=/var/log"
+          --mount volume=var-log,target=/var/log \
+          --volume cni-bin,kind=host,source=/opt/cni/bin \
+          --mount volume=cni-bin,target=/opt/cni/bin"
         ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests
         ExecStartPre=/usr/bin/mkdir -p /var/log/containers
         ExecStartPre=-/usr/bin/rkt rm --uuid-file=/var/run/kubelet-pod.uuid
+        ExecStartPre=/usr/bin/mkdir -p /opt/cni/bin
         ExecStart=/usr/lib/coreos/kubelet-wrapper \
           --api-servers=https://10.0.70.50 \
           --container-runtime=docker \
-          --register-node=true \
           --allow-privileged=true \
           --pod-manifest-path=/etc/kubernetes/manifests \
           --cluster_dns=10.3.0.10 \
           --cluster_domain=cluster.local \
           --network-plugin=cni \
           --cni-bin-dir=/opt/cni/bin \
-          --cni-conf-dir=/etc/kubernetes/cni/net.d \
+          --cni-conf-dir=/etc/cni/net.d \
           --kubeconfig=/etc/kubernetes/worker-kubeconfig.yaml \
           --tls-cert-file=/etc/kubernetes/ssl/worker.pem \
           --tls-private-key-file=/etc/kubernetes/ssl/worker-key.pem \
@@ -51,7 +53,7 @@ storage:
       mode: 644
       contents:
         remote: 
-          url: https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/yaml/kube-proxy.yaml
+          url: https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/yaml/kube-proxy-node.yaml
     - path: "/etc/kubernetes/worker-kubeconfig.yaml"
       filesystem: "root"
       mode: 644
@@ -74,18 +76,6 @@ storage:
               user: kubelet
             name: kubelet-context
           current-context: kubelet-context
-    - path: "/etc/kubernetes/cni/net.d/10-flannel.conf"
-      filesystem: "root"
-      mode: 644
-      contents:
-        inline: |
-          {
-            "name": "podnet",
-            "type": "flannel",
-            "delegate": {
-              "isDefaultGateway": true
-            }
-          }
     - path: "/etc/kubernetes/ssl/ca.pem"
       filesystem: "root"
       mode: 644
@@ -116,23 +106,23 @@ storage:
       contents:
         inline: |
           -----BEGIN CERTIFICATE-----
-          MIIDEjCCAfqgAwIBAgIJAJxrbQ79ntkNMA0GCSqGSIb3DQEBBQUAMBIxEDAOBgNV
-          BAMTB2t1YmUtY2EwHhcNMTcwODAxMTczODI2WhcNMTgwODAxMTczODI2WjAyMRkw
-          FwYDVQQDDBB3b3JrZXIuazhzLmxvY2FsMRUwEwYDVQQKDAxzeXN0ZW06bm9kZXMw
-          ggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC5h++4V0F7lxaAkSX3oAgp
-          a4SbS6YTO9ka1qYPvZiTE6YwvNm1nhPSv58y713SPhKYPy49wCCNudvKdSK/TfG2
-          KC56J01R1BxheSGpjxoskombM/itddc3aCq6KxiY3UrQPDuC3Xq2+Io0rdo91rNg
-          SpLBdUsSayESu3jMJRT3bTaddDrPWcZwNFTpBwJan5jASsdOaw3ZtQ94cHRi67KU
-          BiGfzobSSYuHKRoJIKf6+JJOK9n3j7A2/5Pdn6twLhT5FBaZx2OLrXwcOgjNJu/9
-          +BktnAlT4xxMQ/pH+l/pkQTdcOsoebgMuBhKyPIKL23FMI8wFjnM8AfTD8fHyCc7
-          AgMBAAGjSzBJMAkGA1UdEwQCMAAwCwYDVR0PBAQDAgXgMC8GA1UdEQQoMCaCFCou
-          Ki5jbHVzdGVyLmludGVybmFsgg4qLmVjMi5pbnRlcm5hbDANBgkqhkiG9w0BAQUF
-          AAOCAQEAGceXOVDkA8id9Ht8+ekh3U3OEFl5BvoNAX9jlyNuoMoLUfvP7Gu2nnru
-          AR1B0m3/59ODtxSmZchvPpmz6m2xuupsvts4yddbNmozntryzImhwA67ymulJpjD
-          VOuQQ5X0cuLGYrU9LfAp2lkytjZhpUTR/jQSEfxRkjaHLICQng88aeBIotGyhO0k
-          kZlUHqCfjP6pNB2menor1qomDn9uIYsSfzijaIGLEMnP2+dOqCQ3nrkz1fzzvERY
-          6qgelOvkeyr7LTrvybvINJmJ7eCwsLUUpn/mi0jW4uQnxUxiL5k9E8iRfCduobVV
-          hvyQDIgjX8b42z7bAQMocTnQ87L33g==
+          MIIDDTCCAfWgAwIBAgIJAJxrbQ79ntkQMA0GCSqGSIb3DQEBBQUAMBIxEDAOBgNV
+          BAMTB2t1YmUtY2EwHhcNMTcwODExMTkyNTI3WhcNMTgwODExMTkyNTI3WjAtMRQw
+          EgYDVQQDDAtzeXN0ZW06bm9kZTEVMBMGA1UECgwMc3lzdGVtOm5vZGVzMIIBIjAN
+          BgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArt7YCqAdRUrlDJIspcwg+GqPNwq0
+          Sq3FT8ug42QXu4C+Fxeaa36BLycrSm2V6dmbCkImftUC/6u1IO0aJowrasO24Zi5
+          0Y84WVGIvGXLmU0D8Q6kIvTXqNDXnXAh/QHdF+Oa4gMl2EPSuiWmoqhbjuith+Kv
+          UM2QLFyWI7pihIPEu+4TWLtslp6q4VbwoLz7X2ggqCv0Ir/lYzhFzecVBgpXldq9
+          R7wVsXetiFwNB3Wck4j9McVp7Z51D/Z9+HF+1qKU4+ft0fk9yvdkL/85tbnBUwmR
+          z6uKeZnLF1NSVFjiB9Ub4OjPzMj72WfSPfiR9lb+R/NIGRBjszVNaOP0wwIDAQAB
+          o0swSTAJBgNVHRMEAjAAMAsGA1UdDwQEAwIF4DAvBgNVHREEKDAmghQqLiouY2x1
+          c3Rlci5pbnRlcm5hbIIOKi5lYzIuaW50ZXJuYWwwDQYJKoZIhvcNAQEFBQADggEB
+          AB01lllmgtQy+EhyKgcfUPYyQwXo1EAho9ND4b9q/7Z7RPdzGx7dFI6SQq0cQZxk
+          +B2ToPkEp4eS7RMndSMO6+wxtAq4gS9HE3d6zf5chEBN9u+SqtTJ9M4DyQ+Zf/K1
+          qK842Bsxn3BnDKXylvF3aNUPWdWZf72Uqg8mYr1orWjWRLPv44b5LoUjv862kuMI
+          jVTjxEkHvqDEI7qluQhlxfu7AhSX8yn796jzPyNcW6XD7sbur6mVEkO+lUMLlh2M
+          2yEby5ZQe0Gfj00m+FUvK5VuT4HHuuhiMahn00gT0Jm5cQ4DpSGdJ7JwI2FcKooT
+          c0P5hLXSVSocengkBTvynqs=
           -----END CERTIFICATE-----
     - path: "/etc/kubernetes/ssl/worker-key.pem"
       filesystem: "root"
@@ -140,31 +130,31 @@ storage:
       contents:
         inline: |
           -----BEGIN RSA PRIVATE KEY-----
-          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
+          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
           -----END RSA PRIVATE KEY-----
 
 locksmith:
