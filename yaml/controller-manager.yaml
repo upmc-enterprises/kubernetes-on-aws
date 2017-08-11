@@ -7,7 +7,7 @@ spec:
   hostNetwork: true
   containers:
   - name: kube-controller-manager
-    image: gcr.io/google_containers/hyperkube:v1.7.2
+    image: gcr.io/google_containers/hyperkube:v1.7.3
     command:
     - /hyperkube
     - controller-manager
@@ -16,6 +16,7 @@ spec:
     - --service-account-private-key-file=/etc/kubernetes/ssl/apiserver-key.pem
     - --root-ca-file=/etc/kubernetes/ssl/ca.pem
     - --cloud-provider=aws
+    - --cluster-cidr=10.244.0.0/16
     resources:
       requests:
         cpu: 200m
