@@ -22,11 +22,14 @@ systemd:
           --volume dns,kind=host,source=/etc/resolv.conf \
           --mount volume=dns,target=/etc/resolv.conf \
           --volume cni-bin,kind=host,source=/opt/cni/bin \
-          --mount volume=cni-bin,target=/opt/cni/bin"
+          --mount volume=cni-bin,target=/opt/cni/bin \
+          --volume cni-conf-dir,kind=host,source=/etc/cni/net.d \
+          --mount volume=cni-conf-dir,target=/etc/cni/net.d"
         ExecStartPre=/usr/bin/mkdir -p /etc/kubernetes/manifests
-        ExecStartPre=/usr/bin/mkdir -p /var/log/containers
+        ExecStartPre=/usr/bin/mkdir -p /etc/cni/net.d
         ExecStartPre=-/usr/bin/rkt rm --uuid-file=/var/run/kubelet-pod.uuid
         ExecStartPre=/usr/bin/mkdir -p /opt/cni/bin
+        ExecStartPre=/usr/bin/tar xzvf /opt/cni/bin/cni-plugins.tgz -C /opt/cni/bin
         ExecStart=/usr/lib/coreos/kubelet-wrapper \
           --api-servers=http://127.0.0.1:8080 \
           --register-schedulable=false \
@@ -84,6 +87,12 @@ storage:
       contents:
         remote: 
           url: https://storage.googleapis.com/kubernetes-release/release/v1.6.7/bin/linux/amd64/kubectl
+    - path: "/opt/cni/bin/cni-plugins.tgz"
+      filesystem: "root"
+      mode: 755
+      contents:
+        remote:
+          url: https://github.com/containernetworking/plugins/releases/download/v0.6.0-rc2/cni-plugins-amd64-v0.6.0-rc2.tgz
     - path: "/etc/kubernetes/ssl/ca.pem"
       filesystem: "root"
       mode: 644

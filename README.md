@@ -73,8 +73,16 @@ Use the following command to create the stack without needing to use the AWS Web
 ```
 $ kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
 $ kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel-rbac.yml
-$ kubectl create -f https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/yaml/cluster/kube-dns-rc.yml
-$ kubectl create -f https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/yaml/cluster/kube-dns-svc.yml
+$ kubectl create -f https://raw.githubusercontent.com/upmc-enterprises/kubernetes-on-aws/master/yaml/cluster/kube-dns.yml
+```
+
+### Edit RBAC role 
+
+This is a bug in the current 1.7 release where the RBAC role is not properly defined. 
+
+Edit the role and add `list` and `watch` to the `endpoints` section:
+```
+$ kubectl edit clusterrole system:node
 ```
 
 ### Configure Kubectl
