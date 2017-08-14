@@ -87,7 +87,7 @@ $ kubectl edit clusterrole system:node
 
 ### Configure Kubectl
 
-Use the certs created in the generate certs section to configure local kubectl.
+Use the certs created in the generate certs section to configure local kubectl. [Create a user / role here.](RBAC.md)
 
 ```
 $ kubectl config set-cluster aws --server=https://[name matching cert SAN from above]:9443 --certificate-authority=${CA_CERT}
