@@ -16,8 +16,8 @@ spec:
     - --service-account-private-key-file=/etc/kubernetes/ssl/apiserver-key.pem
     - --root-ca-file=/etc/kubernetes/ssl/ca.pem
     - --cloud-provider=aws
-    - --cluster-cidr=10.244.0.0/16
-    - --allocate-node-cidrs=true
+    # - --cluster-cidr=10.244.0.0/16
+    # - --allocate-node-cidrs=true
     resources:
       requests:
         cpu: 200m
