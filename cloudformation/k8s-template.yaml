@@ -323,6 +323,10 @@ Resources:
         FromPort: 8080
         IpProtocol: tcp
         ToPort: 8080
+      - CidrIp: 0.0.0.0/0
+        FromPort: 6378
+        IpProtocol: tcp
+        ToPort: 6378
       Tags:
       - Key: KubernetesCluster
         Value:
@@ -358,6 +362,10 @@ Resources:
         FromPort: 22
         IpProtocol: tcp
         ToPort: 22
+      - CidrIp: 0.0.0.0/0
+        FromPort: 6378
+        IpProtocol: tcp
+        ToPort: 6378
       Tags:
       - Key: KubernetesCluster
         Value:
