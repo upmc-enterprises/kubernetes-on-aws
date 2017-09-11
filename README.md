@@ -32,19 +32,17 @@ _NOTE: The network template provided is NOT required to use the k8s template._
 
 4. Generate Worker Certs: `./scripts/certs/generate-worker-certs.sh`
 
-5. Convert the keys generated in previous steps to base64 by running `./scripts/certs/convertcerts2base64.sh`
+5. Create ssh keypair for cluster management (All servers behind bastion will use this key)
 
-6. Create ssh keypair for cluster management (All servers behind bastion will use this key)
+6. Login to AWS console and run getting starting wizard for OpsWorks. This creates the needed roles to create the OpsStack for our deployment
 
-7. Login to AWS console and run getting starting wizard for OpsWorks. This creates the needed roles to create the OpsStack for our deployment
+7. Create the base stack (`cloudformation/NetworkBaseline.json`) by navigating to AWS CloudFormation screen, and uploading file, then executing
 
-8. Create the base stack (`cloudformation/NetworkBaseline.json`) by navigating to AWS CloudFormation screen, and uploading file, then executing
+8. Update the ignition configs (`yaml/controller.yaml` & `yaml/node.yaml`) with certs generated in previous steps
 
-9. Update the ignition configs (`yaml/controller.yaml` & `yaml/node.yaml`) with certs generated in previous steps
+9. Transpile configs and copy into template (See [Generate ignition config](#generate-ignition-config))) 
 
-10. Transpile configs and copy into template (See [Generate ignition config](#generate-ignition-config))) 
-
-11. Create the Kubernetes stack (`cloudformation/k8s-template.yaml`) by navigating to the AWS CloudFormation screen, and uploading file, then executing. _NOTE: The table to use can be found named: `Route Table for Private Networks`._
+10. Create the Kubernetes stack (`cloudformation/k8s-template.yaml`) by navigating to the AWS CloudFormation screen, and uploading file, then executing. _NOTE: The table to use can be found named: `Route Table for Private Networks`._
 
 _NOTE: Only generate the RootCA once! If RootCA is regenerated, will need to re-create all certs._
 
