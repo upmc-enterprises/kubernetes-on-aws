@@ -3,7 +3,7 @@ Cloudformation scripts to deploy Kubernetes cluster on AWS, everything is TLS an
 
 ## Overview
 
-There are two different CloudFormation templates, [network-template](cloudformation/network-template.json), [k8s-template](cloudformation/k8s-template.json).
+There are two different CloudFormation templates, [network-template](cloudformation/network-template.json), [k8s-template](cloudformation/k8s-template.yaml).
 
 ### Technologies
 
