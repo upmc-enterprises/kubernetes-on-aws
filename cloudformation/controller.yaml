@@ -15,7 +15,7 @@ systemd:
       enable: true
       contents: |
         [Service]
-        Environment=KUBELET_IMAGE_TAG=v1.7.3_coreos.0
+        Environment=KUBELET_IMAGE_TAG=v1.7.8_coreos.2
         Environment="RKT_RUN_ARGS=--uuid-file-save=/var/run/kubelet-pod.uuid \
           --volume var-log,kind=host,source=/var/log \
           --mount volume=var-log,target=/var/log \
